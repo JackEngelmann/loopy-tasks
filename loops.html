@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>loops</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f2;
+    --pane: #ffffff;
+    --border: #e2e0da;
+    --text: #1c1b19;
+    --text-2: #55534f;
+    --text-3: #85827c;
+    --sel: #3b5bdb;
+    --sel-text: #ffffff;
+    --sel-dim: #e3e8fb;
+    --stale: #b7791f;
+    --stale-bg: #fff6d6;
+    --tag: #4c5fb8;
+    --cut: #c0392b;
+    --wait: #2f7f86;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413;
+      --pane: #1e1e1c;
+      --border: #3a3935;
+      --text: #f2f0eb;
+      --text-2: #c4c1ba;
+      --text-3: #98958e;
+      --sel: #7c93f0;
+      --sel-text: #111111;
+      --sel-dim: #262c45;
+      --stale: #e6b94a;
+      --stale-bg: #2b2412;
+      --tag: #9aaaf0;
+      --cut: #e57368;
+      --wait: #6cc4cc;
+    }
+  }
+
+  body {
+    font: 13.5px/1.5 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    padding: 8px 14px;
+    color: var(--text-2);
+    flex-shrink: 0;
+  }
+  header b { color: var(--text); font-weight: 600; }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(200px, 24%) 1fr minmax(240px, 30%);
+    gap: 8px;
+    padding: 0 8px;
+    min-height: 0;
+  }
+
+  /* right column: waiting on top, timed (read-only) below */
+  .side { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+  .side .pane { flex: 1 1 0; }
+
+  .pane {
+    background: var(--pane);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+  .pane.focused { border-color: var(--sel); }
+
+  .pane-head {
+    padding: 6px 10px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--text-3);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  #waitingPane .pane-head span:first-child { color: var(--wait); }
+
+  ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
+
+  .row {
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 10px;
+    cursor: default;
+    white-space: nowrap;
+  }
+  .row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .row .count { color: var(--text-3); font-size: 12px; }
+
+  /* loops */
+  .row.all .name { color: var(--text-2); }
+  .row.stale { background: var(--stale-bg); }
+  .row.stale .name, .row.stale .count { color: var(--stale); }
+  .row.stale .count::before { content: '! '; }
+  .row.waiting-loop .name, .row.waiting-loop .count { color: var(--wait); }
+  .row.waiting-loop .count::before { content: '◷ '; }
+
+  /* selection: solid bar in focused pane, faint in the others */
+  .pane:not(.focused) .row.sel { background: var(--sel-dim); }
+  .pane.focused .row.sel { background: var(--sel); }
+  .pane.focused .row.sel, .pane.focused .row.sel * { color: var(--sel-text) !important; }
+  /* the edit box keeps its own background, so it needs normal text color */
+  .pane.focused .row.sel .edit { color: var(--text) !important; }
+
+  /* tasks */
+  .check { color: var(--text-3); width: 1ch; }
+  .row.done .name { color: var(--text-3); text-decoration: line-through; }
+  .row.cut .name { color: var(--cut); }
+  .tag { color: var(--tag); font-size: 12px; }
+  .tag.none { color: var(--text-3); }
+
+  /* waiting pane: items outside the selected loop fade back */
+  #waiting .check { color: var(--wait); }
+  #waiting .row.other, #timed .row.other { opacity: .45; }
+
+  /* timed pane */
+  #timedPane .pane-head span:first-child { color: var(--tag); }
+  .time { color: var(--tag); font-variant-numeric: tabular-nums; }
+  .row.due .time { color: var(--stale); font-weight: 600; }
+
+  .empty { padding: 10px; color: var(--text-3); }
+  .empty.stale { color: var(--stale); }
+  .empty.wait { color: var(--wait); }
+
+  .edit {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    color: var(--text);
+    background: var(--pane);
+    border: 1px solid var(--sel);
+    border-radius: 3px;
+    padding: 0 4px;
+    outline: none;
+  }
+
+  footer {
+    display: flex;
+    gap: 16px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--text-3);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  footer .mode {
+    color: var(--sel-text);
+    background: var(--sel);
+    padding: 0 6px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  footer .clip { color: var(--cut); }
+  footer kbd { font: inherit; color: var(--text-2); }
+  footer .spacer { flex: 1; }
+</style>
+</head>
+<body>
+
+<header id="crumb"></header>
+
+<main>
+  <section class="pane" id="loopsPane">
+    <div class="pane-head"><span>Loops</span><span id="loopsMeta"></span></div>
+    <ul id="loops"></ul>
+  </section>
+  <section class="pane" id="tasksPane">
+    <div class="pane-head"><span id="tasksTitle">Tasks</span><span id="tasksMeta"></span></div>
+    <ul id="tasks"></ul>
+  </section>
+  <div class="side">
+    <section class="pane" id="waitingPane">
+      <div class="pane-head"><span>Waiting</span><span id="waitingMeta"></span></div>
+      <ul id="waiting"></ul>
+    </section>
+    <section class="pane" id="timedPane">
+      <div class="pane-head"><span>Timed</span><span id="timedMeta"></span></div>
+      <ul id="timed"></ul>
+    </section>
+  </div>
+</main>
+
+<footer id="status"></footer>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'loops-v1';
+let state = { loops: [], tasks: [] };
+let history = [];
+
+// navigable panes; the timed pane is informational only
+const PANES = ['loops', 'tasks', 'waiting'];
+
+const ui = {
+  focus: 'loops',     // one of PANES
+  loopIdx: 0,         // 0 is the virtual "All" loop
+  taskIdx: 0,
+  waitIdx: 0,
+  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename', id?, pane? }
+  cutId: null,
+  showDone: false,
+};
+
+function load() {
+  try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || state; } catch {}
+}
+function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// snapshot before every change so `u` can undo it
+function mutate(fn) {
+  history.push(JSON.stringify(state));
+  if (history.length > 200) history.shift();
+  fn();
+  persist();
+}
+
+const ALL = { id: null, title: 'All' };
+const loopsList = () => [ALL, ...state.loops];
+const currentLoop = () => loopsList()[ui.loopIdx];
+const loopById = id => state.loops.find(l => l.id === id);
+const openTasks = id => state.tasks.filter(t => !t.done && (id === null || t.loopId === id));
+const openCount = id => openTasks(id).length;
+
+// "@w" anywhere in the title marks a task as waiting
+const WAIT_RE = /(^|\s)@w(?=\s|$)/g;
+const isWaiting = t => new RegExp(WAIT_RE.source).test(t.title);
+const stripWait = s => s.replace(WAIT_RE, '$1').replace(/\s+/g, ' ').trim();
+
+// a time like "14:30" or "0:10" anywhere in the title makes a task timed
+const TIME_RE = /(^|\s)([01]?\d|2[0-3]):([0-5]\d)(?=\s|$)/;
+function timeOf(t) {
+  const m = t.title.match(TIME_RE);
+  return m ? +m[2] * 60 + +m[3] : null;
+}
+const fmtTime = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+
+const displayTitle = t => stripWait(t.title.replace(TIME_RE, '$1'));
+
+// each open task lives in tasks or waiting; the timed pane mirrors any task with a time
+const paneOf = t => isWaiting(t) ? 'waiting' : 'tasks';
+
+// middle pane: things you can do now
+function tasksFor(loop) {
+  const ts = state.tasks.filter(t => loop.id === null || t.loopId === loop.id);
+  const open = ts.filter(t => !t.done && paneOf(t) === 'tasks');
+  return ui.showDone ? [...open, ...ts.filter(t => t.done)] : open;
+}
+const currentTasks = () => tasksFor(currentLoop());
+const waitingTasks = () => state.tasks.filter(t => !t.done && paneOf(t) === 'waiting');
+const timedTasks = () => state.tasks.filter(t => !t.done && timeOf(t) !== null)
+  .sort((a, b) => timeOf(a) - timeOf(b));
+
+// cursor key and task list of each task pane
+const LISTS = {
+  tasks:   ['taskIdx',  currentTasks],
+  waiting: ['waitIdx',  waitingTasks],
+};
+const idxKey = () => LISTS[ui.focus][0];
+const paneTasks = () => LISTS[ui.focus][1]();
+const selTask = () => ui.focus === 'loops' ? null : paneTasks()[ui[idxKey()]];
+
+function clamp() {
+  const fit = (i, n) => Math.max(0, Math.min(i, n - 1));
+  ui.loopIdx = fit(ui.loopIdx, loopsList().length);
+  Object.values(LISTS).forEach(([key, list]) => { ui[key] = fit(ui[key], list().length); });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function render() {
+  clamp();
+  renderLoops();
+  renderTasks();
+  renderWaiting();
+  renderTimed();
+  renderChrome();
+
+  document.querySelectorAll('.row.sel').forEach(el => el.scrollIntoView({ block: 'nearest' }));
+
+  const inp = document.querySelector('.edit');
+  if (inp) {
+    inp.focus();
+    inp.setSelectionRange(inp.value.length, inp.value.length);
+  }
+}
+
+function editInput(value) {
+  return `<input class="edit" value="${esc(value)}" autocomplete="off" spellcheck="false">`;
+}
+
+function renderLoops() {
+  const ed = ui.editing;
+  const rows = loopsList().map((l, i) => {
+    const open = openTasks(l.id);
+    const n = open.length;
+    const cls = ['row',
+      i === ui.loopIdx && !(ed && ed.kind === 'new-loop') && 'sel',
+      l.id === null && 'all',
+      l.id !== null && n === 0 && 'stale',
+      l.id !== null && n > 0 && open.every(isWaiting) && 'waiting-loop'].filter(Boolean).join(' ');
+    const name = ed && ed.kind === 'rename' && ed.id === l.id && l.id
+      ? editInput(l.title)
+      : `<span class="name">${esc(l.title)}</span>`;
+    return `<li class="${cls}" data-i="${i}">${name}<span class="count">${n}</span></li>`;
+  });
+  if (ed && ed.kind === 'new-loop') rows.push(`<li class="row sel">${editInput('')}</li>`);
+  document.getElementById('loops').innerHTML = rows.join('');
+
+  const stale = state.loops.filter(l => openCount(l.id) === 0).length;
+  const waiting = state.loops.filter(l => openCount(l.id) > 0 && openTasks(l.id).every(isWaiting)).length;
+  document.getElementById('loopsMeta').textContent =
+    [stale && `! ${stale}`, waiting && `◷ ${waiting}`].filter(Boolean).join('  ');
+}
+
+function taskRow(t, i, { selected, showTag, other }) {
+  const ed = ui.editing;
+  const time = timeOf(t);
+  const cls = ['row',
+    selected && 'sel',
+    t.done && 'done',
+    other && 'other',
+    !t.done && time !== null && time <= nowMinutes() && 'due',
+    t.id === ui.cutId && 'cut'].filter(Boolean).join(' ');
+  const l = loopById(t.loopId);
+  const tag = showTag ? `<span class="tag${l ? '' : ' none'}">[${l ? esc(l.title) : '–'}]</span>` : '';
+  const name = ed && ed.kind === 'rename' && ed.id === t.id
+    ? editInput(t.title)
+    : `<span class="name">${esc(displayTitle(t))}</span>`;
+  const check = t.done ? '✓' : isWaiting(t) ? '◷' : '·';
+  const timeEl = time !== null ? `<span class="time">${fmtTime(time)}</span>` : '';
+  return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${timeEl}${tag}${name}</li>`;
+}
+
+function newTaskRow(pane) {
+  return `<li class="row sel"><span class="check">${pane === 'waiting' ? '◷' : '·'}</span>${editInput('')}</li>`;
+}
+
+const addingIn = pane => ui.editing && ui.editing.kind === 'new-task' && ui.editing.pane === pane;
+
+function renderTasks() {
+  const loop = currentLoop();
+  const adding = addingIn('tasks');
+
+  const rows = currentTasks().map((t, i) => taskRow(t, i, {
+    selected: ui.focus === 'tasks' && i === ui.taskIdx && !adding,
+    // the [loop] tag only adds information in the All view
+    showTag: loop.id === null,
+  }));
+  if (adding) rows.push(newTaskRow('tasks'));
+  if (!rows.length) {
+    const elsewhere = openTasks(loop.id).length;
+    rows.push(
+      elsewhere ? `<li class="empty wait">Only waiting tasks here — see the right pane.</li>`
+      : loop.id === null ? `<li class="empty">No tasks. Press a to add one.</li>`
+      : `<li class="empty stale">No next action. Press l then a to add one.</li>`);
+  }
+  document.getElementById('tasks').innerHTML = rows.join('');
+
+  const todo = currentTasks().filter(t => !t.done).length;
+  document.getElementById('tasksTitle').textContent = loop.title;
+  document.getElementById('tasksMeta').textContent = `${todo} to do`;
+}
+
+function renderWaiting() {
+  const loop = currentLoop();
+  const adding = addingIn('waiting');
+  const ts = waitingTasks();
+
+  const rows = ts.map((t, i) => taskRow(t, i, {
+    selected: ui.focus === 'waiting' && i === ui.waitIdx && !adding,
+    showTag: true,
+    other: loop.id !== null && t.loopId !== loop.id,
+  }));
+  if (adding) rows.push(newTaskRow('waiting'));
+  if (!rows.length) rows.push(`<li class="empty">Nothing waiting.</li>`);
+  document.getElementById('waiting').innerHTML = rows.join('');
+  document.getElementById('waitingMeta').textContent = sideMeta(ts, loop);
+}
+
+function renderTimed() {
+  const loop = currentLoop();
+  const ts = timedTasks();
+
+  const rows = ts.map((t, i) => taskRow(t, i, {
+    showTag: true,
+    other: loop.id !== null && t.loopId !== loop.id,
+  }));
+  if (!rows.length) rows.push(`<li class="empty">Nothing timed. Put a time like 14:30 in a task.</li>`);
+  document.getElementById('timed').innerHTML = rows.join('');
+  document.getElementById('timedMeta').textContent = sideMeta(ts, loop);
+}
+
+function sideMeta(ts, loop) {
+  if (!ts.length) return '';
+  if (loop.id === null) return `${ts.length}`;
+  return `${ts.filter(t => t.loopId === loop.id).length} here · ${ts.length} total`;
+}
+
+function renderChrome() {
+  PANES.forEach(p => document.getElementById(p + 'Pane').classList.toggle('focused', ui.focus === p));
+
+  const loop = currentLoop();
+  const task = selTask();
+  document.getElementById('crumb').innerHTML =
+    `loops / <b>${esc(loop.title)}</b>` + (task ? ` / ${esc(displayTitle(task))}` : '');
+
+  const cut = state.tasks.find(t => t.id === ui.cutId);
+  const hints = ui.editing
+    ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>14:30</kbd> timed'
+    : ui.focus === 'loops'
+      ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>a</kbd> new loop  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>u</kbd> undo'
+      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h/l</kbd> panes  <kbd>a</kbd> new  <kbd>space</kbd> done  <kbd>w</kbd> ${ui.focus === 'waiting' ? 'unblock' : 'waiting'}  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>u</kbd> undo`;
+  document.getElementById('status').innerHTML = `
+    <span class="mode">${ui.editing ? 'INSERT' : ui.focus.toUpperCase()}</span>
+    ${cut ? `<span class="clip">cut: ${esc(displayTitle(cut))}</span>` : ''}
+    <span class="spacer"></span>
+    <span>${hints}</span>`;
+}
+
+// ── Editing ───────────────────────────────────────────────────────────────────
+
+function commitEdit(value) {
+  const ed = ui.editing;
+  ui.editing = null;
+  value = value.trim();
+  if (!value) return render();
+
+  if (ed.kind === 'new-loop') {
+    mutate(() => state.loops.push({ id: uid(), title: value, createdAt: Date.now() }));
+    ui.loopIdx = state.loops.length;
+  } else if (ed.kind === 'new-task') {
+    const title = ed.pane === 'waiting' && !/(^|\s)@w(\s|$)/.test(value) ? `${value} @w` : value;
+    const task = { id: uid(), title, loopId: currentLoop().id, done: false, createdAt: Date.now() };
+    mutate(() => state.tasks.push(task));
+    // follow the task to whichever pane it landed in
+    const pane = paneOf(task);
+    ui.focus = pane;
+    ui[LISTS[pane][0]] = LISTS[pane][1]().indexOf(task);
+  } else if (ed.kind === 'rename') {
+    const item = loopById(ed.id) || state.tasks.find(t => t.id === ed.id);
+    if (item) mutate(() => { item.title = value; });
+  }
+  render();
+}
+
+function cancelEdit() {
+  ui.editing = null;
+  render();
+}
+
+document.addEventListener('keydown', e => {
+  if (!e.target.classList.contains('edit')) return;
+  e.stopPropagation();
+  if (e.key === 'Enter') commitEdit(e.target.value);
+  else if (e.key === 'Escape') cancelEdit();
+}, true);
+
+document.addEventListener('focusout', e => {
+  if (e.target.classList.contains('edit') && ui.editing) cancelEdit();
+});
+
+// ── Keys ──────────────────────────────────────────────────────────────────────
+
+function move(delta) {
+  if (ui.focus === 'loops') {
+    ui.loopIdx += delta;
+    ui.taskIdx = 0;
+  } else {
+    ui[idxKey()] += delta;
+  }
+}
+
+function jump(toEnd) {
+  if (ui.focus === 'loops') {
+    ui.loopIdx = toEnd ? loopsList().length - 1 : 0;
+    ui.taskIdx = 0;
+  } else {
+    ui[idxKey()] = toEnd ? paneTasks().length - 1 : 0;
+  }
+}
+
+function focusPane(delta) {
+  const i = PANES.indexOf(ui.focus) + delta;
+  if (i >= 0 && i < PANES.length) ui.focus = PANES[i];
+}
+
+function swap(arr, i, j) { [arr[i], arr[j]] = [arr[j], arr[i]]; }
+
+// J/K: move the selected item down/up; "All" stays pinned on top
+function shift(delta) {
+  if (ui.focus === 'loops') {
+    const i = ui.loopIdx - 1, j = i + delta;
+    if (i < 0 || j < 0 || j >= state.loops.length) return;
+    mutate(() => swap(state.loops, i, j));
+    ui.loopIdx += delta;
+  } else {
+    // swap with the visible neighbour, so it works inside a filtered view
+    const ts = paneTasks();
+    const k = idxKey();
+    const a = ts[ui[k]], b = ts[ui[k] + delta];
+    if (!a || !b || a.done !== b.done) return;
+    mutate(() => swap(state.tasks, state.tasks.indexOf(a), state.tasks.indexOf(b)));
+    ui[k] += delta;
+  }
+}
+
+function add() {
+  ui.editing = ui.focus === 'loops'
+    ? { kind: 'new-loop' }
+    : { kind: 'new-task', pane: ui.focus };
+}
+
+function rename() {
+  const item = ui.focus === 'loops' ? currentLoop() : selTask();
+  if (item && item.id) ui.editing = { kind: 'rename', id: item.id };
+}
+
+function remove() {
+  if (ui.focus === 'loops') {
+    const loop = currentLoop();
+    if (!loop.id) return;
+    // deleting a loop keeps its tasks, unassigned
+    mutate(() => {
+      state.tasks.forEach(t => { if (t.loopId === loop.id) t.loopId = null; });
+      state.loops = state.loops.filter(l => l.id !== loop.id);
+    });
+  } else {
+    const task = selTask();
+    if (task) mutate(() => { state.tasks = state.tasks.filter(t => t.id !== task.id); });
+  }
+}
+
+function toggleDone() {
+  const task = selTask();
+  if (task) mutate(() => { task.done = !task.done; task.doneAt = task.done ? Date.now() : null; });
+}
+
+function toggleWaiting() {
+  const task = selTask();
+  if (!task || task.done) return;
+  mutate(() => { task.title = isWaiting(task) ? stripWait(task.title) : `${task.title} @w`; });
+}
+
+function cut() {
+  const task = selTask();
+  if (task) ui.cutId = ui.cutId === task.id ? null : task.id;
+}
+
+// pasting into "All" unassigns the task
+function paste() {
+  const task = state.tasks.find(t => t.id === ui.cutId);
+  if (!task) return;
+  mutate(() => { task.loopId = currentLoop().id; });
+  ui.cutId = null;
+}
+
+function undo() {
+  if (!history.length) return;
+  state = JSON.parse(history.pop());
+  persist();
+}
+
+const keymap = {
+  j: () => move(1),          ArrowDown: () => move(1),
+  k: () => move(-1),         ArrowUp: () => move(-1),
+  J: () => shift(1),         K: () => shift(-1),
+  g: () => jump(false),      G: () => jump(true),
+  l: () => focusPane(1),     ArrowRight: () => focusPane(1),
+  h: () => focusPane(-1),    ArrowLeft: () => focusPane(-1),
+  Enter: () => { if (ui.focus === 'loops') ui.focus = 'tasks'; else toggleDone(); },
+  a: add,
+  r: rename,
+  d: remove,
+  ' ': toggleDone,
+  w: toggleWaiting,
+  x: cut,
+  p: paste,
+  u: undo,
+  '.': () => { ui.showDone = !ui.showDone; },
+  Escape: () => { ui.cutId = null; },
+};
+
+document.addEventListener('keydown', e => {
+  if (ui.editing || e.metaKey || e.ctrlKey || e.altKey) return;
+  const fn = keymap[e.key];
+  if (!fn) return;
+  e.preventDefault();
+  fn();
+  render();
+});
+
+// ── Mouse ─────────────────────────────────────────────────────────────────────
+
+document.getElementById('loops').addEventListener('click', e => {
+  const row = e.target.closest('.row[data-i]');
+  if (!row || ui.editing) return;
+  if (+row.dataset.i !== ui.loopIdx) ui.taskIdx = 0;
+  ui.loopIdx = +row.dataset.i;
+  ui.focus = 'loops';
+  render();
+});
+
+Object.entries(LISTS).forEach(([pane, [key]]) => {
+  document.getElementById(pane).addEventListener('click', e => {
+    if (ui.editing) return;
+    const row = e.target.closest('.row[data-i]');
+    ui.focus = pane;
+    if (row) ui[key] = +row.dataset.i;
+    render();
+  });
+});
+
+// ── Seed ──────────────────────────────────────────────────────────────────────
+
+function seed() {
+  const loops = ['Website redesign', 'Quarterly report', 'Onboarding guide', 'Team offsite']
+    .map(title => ({ id: uid(), title, createdAt: Date.now() }));
+  state.loops = loops;
+  const [web, report, guide] = loops;
+  [
+    ['Sketch new landing page', web.id],
+    ['Collect feedback on current site', web.id],
+    ['Agent: audit page load times @w', web.id],
+    ['Draft sent to finance for review @w', report.id],
+    ['Outline setup chapter', guide.id],
+    ['Reply to invoice email', null],
+    ['Standup 09:30', null],
+    ['Design review 14:00', web.id],
+    ['Book dentist appointment', null],
+  ].forEach(([title, loopId]) => state.tasks.push({ id: uid(), title, loopId, done: false, createdAt: Date.now() }));
+  persist();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+load();
+if (!state.loops.length && !state.tasks.length) seed();
+render();
+
+// keep "due" highlighting current; skip while typing so the input isn't reset
+setInterval(() => { if (!ui.editing) render(); }, 60_000);
+</script>
+</body>
+</html>
