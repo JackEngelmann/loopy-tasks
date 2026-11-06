@@ -23,6 +23,7 @@
     --tag: #4c5fb8;
     --cut: #c0392b;
     --wait: #2f7f86;
+    --imp: #b83280;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -40,6 +41,7 @@
       --tag: #9aaaf0;
       --cut: #e57368;
       --wait: #6cc4cc;
+      --imp: #f08bc0;
     }
   }
 
@@ -96,6 +98,9 @@
     gap: 8px;
   }
   #waitingPane .pane-head span:first-child { color: var(--wait); }
+  #importantPane .pane-head span:first-child { color: var(--imp); }
+  .star { color: var(--imp); }
+  .row.virtual-important .name, .row.virtual-important .count { color: var(--imp); }
 
   ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 
@@ -112,7 +117,9 @@
   .row .count { color: var(--text-3); font-size: 12px; }
 
   /* loops */
-  .row.all .name { color: var(--text-2); }
+  .row.virtual .name { color: var(--text-2); }
+  .row.virtual-waiting .name, .row.virtual-waiting .count { color: var(--wait); }
+  .row.gap-after { margin-bottom: 14px; }
   .row.stale { background: var(--stale-bg); }
   .row.stale .name, .row.stale .count { color: var(--stale); }
   .row.stale .count::before { content: '! '; }
@@ -193,6 +200,10 @@
     <ul id="tasks"></ul>
   </section>
   <div class="side">
+    <section class="pane" id="importantPane">
+      <div class="pane-head"><span>Important</span><span id="importantMeta"></span></div>
+      <ul id="important"></ul>
+    </section>
     <section class="pane" id="waitingPane">
       <div class="pane-head"><span>Waiting</span><span id="waitingMeta"></span></div>
       <ul id="waiting"></ul>
@@ -213,15 +224,14 @@ const STORAGE_KEY = 'loops-v1';
 let state = { loops: [], tasks: [] };
 let history = [];
 
-// navigable panes; the timed pane is informational only
-const PANES = ['loops', 'tasks', 'waiting'];
+// navigable panes; the waiting and timed panes on the right are informational only
+const PANES = ['loops', 'tasks'];
 
 const ui = {
   focus: 'loops',     // one of PANES
-  loopIdx: 0,         // 0 is the virtual "All" loop
+  loopIdx: 0,         // indexes loopsList(): virtual "All" and "Waiting" come first
   taskIdx: 0,
-  waitIdx: 0,
-  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename', id?, pane? }
+  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename', id? }
   cutId: null,
   showDone: false,
 };
@@ -243,17 +253,24 @@ function mutate(fn) {
   persist();
 }
 
-const ALL = { id: null, title: 'All' };
-const loopsList = () => [ALL, ...state.loops];
+// virtual loops have no id, so tasks created there get no loop
+const ALL = { id: null, title: 'All', kind: 'all' };
+const WAITING = { id: null, title: 'Waiting', kind: 'waiting' };
+const IMPORTANT = { id: null, title: 'Important', kind: 'important' };
+const VIRTUAL = [ALL, WAITING, IMPORTANT];
+const loopsList = () => [...VIRTUAL, ...state.loops];
 const currentLoop = () => loopsList()[ui.loopIdx];
 const loopById = id => state.loops.find(l => l.id === id);
 const openTasks = id => state.tasks.filter(t => !t.done && (id === null || t.loopId === id));
 const openCount = id => openTasks(id).length;
 
-// "@w" anywhere in the title marks a task as waiting
-const WAIT_RE = /(^|\s)@w(?=\s|$)/g;
-const isWaiting = t => new RegExp(WAIT_RE.source).test(t.title);
-const stripWait = s => s.replace(WAIT_RE, '$1').replace(/\s+/g, ' ').trim();
+// "@w" / "@i" anywhere in the title mark a task as waiting / important
+const tokenRe = tok => new RegExp(`(^|\\s)${tok}(?=\\s|$)`, 'g');
+const hasToken = (s, tok) => tokenRe(tok).test(s);
+const stripToken = (s, tok) => s.replace(tokenRe(tok), '$1').replace(/\s+/g, ' ').trim();
+const toggleToken = (s, tok) => hasToken(s, tok) ? stripToken(s, tok) : `${s} ${tok}`;
+const isWaiting = t => hasToken(t.title, '@w');
+const isImportant = t => hasToken(t.title, '@i');
 
 // a time like "14:30" or "0:10" anywhere in the title makes a task timed
 const TIME_RE = /(^|\s)([01]?\d|2[0-3]):([0-5]\d)(?=\s|$)/;
@@ -264,35 +281,32 @@ function timeOf(t) {
 const fmtTime = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 
-const displayTitle = t => stripWait(t.title.replace(TIME_RE, '$1'));
+const displayTitle = t => ['@w', '@i'].reduce(stripToken, t.title.replace(TIME_RE, '$1'));
 
 // each open task lives in tasks or waiting; the timed pane mirrors any task with a time
 const paneOf = t => isWaiting(t) ? 'waiting' : 'tasks';
 
-// middle pane: things you can do now
+// middle pane: things you can do now, or everything waiting in the "Waiting" view
 function tasksFor(loop) {
+  if (loop.kind === 'waiting') return waitingTasks();
+  if (loop.kind === 'important') return importantTasks();
   const ts = state.tasks.filter(t => loop.id === null || t.loopId === loop.id);
   const open = ts.filter(t => !t.done && paneOf(t) === 'tasks');
   return ui.showDone ? [...open, ...ts.filter(t => t.done)] : open;
 }
 const currentTasks = () => tasksFor(currentLoop());
 const waitingTasks = () => state.tasks.filter(t => !t.done && paneOf(t) === 'waiting');
+// important mirrors tasks wherever they live, waiting ones included
+const importantTasks = () => state.tasks.filter(t => !t.done && isImportant(t));
 const timedTasks = () => state.tasks.filter(t => !t.done && timeOf(t) !== null)
   .sort((a, b) => timeOf(a) - timeOf(b));
 
-// cursor key and task list of each task pane
-const LISTS = {
-  tasks:   ['taskIdx',  currentTasks],
-  waiting: ['waitIdx',  waitingTasks],
-};
-const idxKey = () => LISTS[ui.focus][0];
-const paneTasks = () => LISTS[ui.focus][1]();
-const selTask = () => ui.focus === 'loops' ? null : paneTasks()[ui[idxKey()]];
+const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] : null;
 
 function clamp() {
   const fit = (i, n) => Math.max(0, Math.min(i, n - 1));
   ui.loopIdx = fit(ui.loopIdx, loopsList().length);
-  Object.values(LISTS).forEach(([key, list]) => { ui[key] = fit(ui[key], list().length); });
+  ui.taskIdx = fit(ui.taskIdx, currentTasks().length);
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -301,8 +315,9 @@ function render() {
   clamp();
   renderLoops();
   renderTasks();
-  renderWaiting();
-  renderTimed();
+  renderSide('important', importantTasks(), 'Nothing important. Press i on a task.');
+  renderSide('waiting', waitingTasks(), 'Nothing waiting.');
+  renderSide('timed', timedTasks(), 'Nothing timed. Put a time like 14:30 in a task.');
   renderChrome();
 
   document.querySelectorAll('.row.sel').forEach(el => el.scrollIntoView({ block: 'nearest' }));
@@ -322,16 +337,21 @@ function renderLoops() {
   const ed = ui.editing;
   const rows = loopsList().map((l, i) => {
     const open = openTasks(l.id);
-    const n = open.length;
+    const n = l.kind === 'waiting' ? waitingTasks().length
+      : l.kind === 'important' ? importantTasks().length
+      : open.length;
     const cls = ['row',
       i === ui.loopIdx && !(ed && ed.kind === 'new-loop') && 'sel',
-      l.id === null && 'all',
+      l.kind && 'virtual',
+      l.kind && `virtual-${l.kind}`,
+      i === VIRTUAL.length - 1 && 'gap-after',
       l.id !== null && n === 0 && 'stale',
       l.id !== null && n > 0 && open.every(isWaiting) && 'waiting-loop'].filter(Boolean).join(' ');
     const name = ed && ed.kind === 'rename' && ed.id === l.id && l.id
       ? editInput(l.title)
       : `<span class="name">${esc(l.title)}</span>`;
-    return `<li class="${cls}" data-i="${i}">${name}<span class="count">${n}</span></li>`;
+    const star = l.id !== null && open.some(isImportant) ? `<span class="star">★</span>` : '';
+    return `<li class="${cls}" data-i="${i}">${name}${star}<span class="count">${n}</span></li>`;
   });
   if (ed && ed.kind === 'new-loop') rows.push(`<li class="row sel">${editInput('')}</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
@@ -358,29 +378,31 @@ function taskRow(t, i, { selected, showTag, other }) {
     : `<span class="name">${esc(displayTitle(t))}</span>`;
   const check = t.done ? '✓' : isWaiting(t) ? '◷' : '·';
   const timeEl = time !== null ? `<span class="time">${fmtTime(time)}</span>` : '';
-  return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${timeEl}${tag}${name}</li>`;
+  const star = !t.done && isImportant(t) ? `<span class="star">★</span>` : '';
+  return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${star}${timeEl}${tag}${name}</li>`;
 }
 
-function newTaskRow(pane) {
-  return `<li class="row sel"><span class="check">${pane === 'waiting' ? '◷' : '·'}</span>${editInput('')}</li>`;
+function newTaskRow(kind) {
+  const mark = kind === 'waiting' ? '◷' : kind === 'important' ? '★' : '·';
+  return `<li class="row sel"><span class="check">${mark}</span>${editInput('')}</li>`;
 }
-
-const addingIn = pane => ui.editing && ui.editing.kind === 'new-task' && ui.editing.pane === pane;
 
 function renderTasks() {
   const loop = currentLoop();
-  const adding = addingIn('tasks');
+  const adding = ui.editing && ui.editing.kind === 'new-task';
 
   const rows = currentTasks().map((t, i) => taskRow(t, i, {
     selected: ui.focus === 'tasks' && i === ui.taskIdx && !adding,
-    // the [loop] tag only adds information in the All view
+    // the [loop] tag only adds information in the virtual views
     showTag: loop.id === null,
   }));
-  if (adding) rows.push(newTaskRow('tasks'));
+  if (adding) rows.push(newTaskRow(loop.kind));
   if (!rows.length) {
     const elsewhere = openTasks(loop.id).length;
     rows.push(
-      elsewhere ? `<li class="empty wait">Only waiting tasks here — see the right pane.</li>`
+      loop.kind === 'waiting' ? `<li class="empty">Nothing waiting.</li>`
+      : loop.kind === 'important' ? `<li class="empty">Nothing important. Press i on a task to mark it.</li>`
+      : elsewhere ? `<li class="empty wait">Only waiting tasks here — see the right pane.</li>`
       : loop.id === null ? `<li class="empty">No tasks. Press a to add one.</li>`
       : `<li class="empty stale">No next action. Press l then a to add one.</li>`);
   }
@@ -388,36 +410,22 @@ function renderTasks() {
 
   const todo = currentTasks().filter(t => !t.done).length;
   document.getElementById('tasksTitle').textContent = loop.title;
-  document.getElementById('tasksMeta').textContent = `${todo} to do`;
+  document.getElementById('tasksMeta').textContent =
+    loop.kind === 'waiting' ? `${todo} waiting`
+    : loop.kind === 'important' ? `${todo} important`
+    : `${todo} to do`;
 }
 
-function renderWaiting() {
+// read-only lists in the right column
+function renderSide(id, ts, emptyMsg) {
   const loop = currentLoop();
-  const adding = addingIn('waiting');
-  const ts = waitingTasks();
-
-  const rows = ts.map((t, i) => taskRow(t, i, {
-    selected: ui.focus === 'waiting' && i === ui.waitIdx && !adding,
-    showTag: true,
-    other: loop.id !== null && t.loopId !== loop.id,
-  }));
-  if (adding) rows.push(newTaskRow('waiting'));
-  if (!rows.length) rows.push(`<li class="empty">Nothing waiting.</li>`);
-  document.getElementById('waiting').innerHTML = rows.join('');
-  document.getElementById('waitingMeta').textContent = sideMeta(ts, loop);
-}
-
-function renderTimed() {
-  const loop = currentLoop();
-  const ts = timedTasks();
-
   const rows = ts.map((t, i) => taskRow(t, i, {
     showTag: true,
     other: loop.id !== null && t.loopId !== loop.id,
   }));
-  if (!rows.length) rows.push(`<li class="empty">Nothing timed. Put a time like 14:30 in a task.</li>`);
-  document.getElementById('timed').innerHTML = rows.join('');
-  document.getElementById('timedMeta').textContent = sideMeta(ts, loop);
+  if (!rows.length) rows.push(`<li class="empty">${emptyMsg}</li>`);
+  document.getElementById(id).innerHTML = rows.join('');
+  document.getElementById(id + 'Meta').textContent = sideMeta(ts, loop);
 }
 
 function sideMeta(ts, loop) {
@@ -436,10 +444,10 @@ function renderChrome() {
 
   const cut = state.tasks.find(t => t.id === ui.cutId);
   const hints = ui.editing
-    ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>14:30</kbd> timed'
+    ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>@i</kbd> important  <kbd>14:30</kbd> timed'
     : ui.focus === 'loops'
       ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>a</kbd> new loop  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>u</kbd> undo'
-      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h/l</kbd> panes  <kbd>a</kbd> new  <kbd>space</kbd> done  <kbd>w</kbd> ${ui.focus === 'waiting' ? 'unblock' : 'waiting'}  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>u</kbd> undo`;
+      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>a</kbd> new  <kbd>space</kbd> done  <kbd>w</kbd> ${loop.kind === 'waiting' ? 'unblock' : 'waiting'}  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>u</kbd> undo`;
   document.getElementById('status').innerHTML = `
     <span class="mode">${ui.editing ? 'INSERT' : ui.focus.toUpperCase()}</span>
     ${cut ? `<span class="clip">cut: ${esc(displayTitle(cut))}</span>` : ''}
@@ -457,15 +465,15 @@ function commitEdit(value) {
 
   if (ed.kind === 'new-loop') {
     mutate(() => state.loops.push({ id: uid(), title: value, createdAt: Date.now() }));
-    ui.loopIdx = state.loops.length;
+    ui.loopIdx = VIRTUAL.length + state.loops.length - 1;
   } else if (ed.kind === 'new-task') {
-    const title = ed.pane === 'waiting' && !/(^|\s)@w(\s|$)/.test(value) ? `${value} @w` : value;
+    // creating inside a virtual view adds its marker
+    const tok = { waiting: '@w', important: '@i' }[currentLoop().kind];
+    const title = tok && !hasToken(value, tok) ? `${value} ${tok}` : value;
     const task = { id: uid(), title, loopId: currentLoop().id, done: false, createdAt: Date.now() };
     mutate(() => state.tasks.push(task));
-    // follow the task to whichever pane it landed in
-    const pane = paneOf(task);
-    ui.focus = pane;
-    ui[LISTS[pane][0]] = LISTS[pane][1]().indexOf(task);
+    ui.focus = 'tasks';
+    ui.taskIdx = currentTasks().indexOf(task);
   } else if (ed.kind === 'rename') {
     const item = loopById(ed.id) || state.tasks.find(t => t.id === ed.id);
     if (item) mutate(() => { item.title = value; });
@@ -496,7 +504,7 @@ function move(delta) {
     ui.loopIdx += delta;
     ui.taskIdx = 0;
   } else {
-    ui[idxKey()] += delta;
+    ui.taskIdx += delta;
   }
 }
 
@@ -505,7 +513,7 @@ function jump(toEnd) {
     ui.loopIdx = toEnd ? loopsList().length - 1 : 0;
     ui.taskIdx = 0;
   } else {
-    ui[idxKey()] = toEnd ? paneTasks().length - 1 : 0;
+    ui.taskIdx = toEnd ? currentTasks().length - 1 : 0;
   }
 }
 
@@ -516,28 +524,25 @@ function focusPane(delta) {
 
 function swap(arr, i, j) { [arr[i], arr[j]] = [arr[j], arr[i]]; }
 
-// J/K: move the selected item down/up; "All" stays pinned on top
+// J/K: move the selected item down/up; the virtual loops stay pinned on top
 function shift(delta) {
   if (ui.focus === 'loops') {
-    const i = ui.loopIdx - 1, j = i + delta;
+    const i = ui.loopIdx - VIRTUAL.length, j = i + delta;
     if (i < 0 || j < 0 || j >= state.loops.length) return;
     mutate(() => swap(state.loops, i, j));
     ui.loopIdx += delta;
   } else {
     // swap with the visible neighbour, so it works inside a filtered view
-    const ts = paneTasks();
-    const k = idxKey();
-    const a = ts[ui[k]], b = ts[ui[k] + delta];
+    const ts = currentTasks();
+    const a = ts[ui.taskIdx], b = ts[ui.taskIdx + delta];
     if (!a || !b || a.done !== b.done) return;
     mutate(() => swap(state.tasks, state.tasks.indexOf(a), state.tasks.indexOf(b)));
-    ui[k] += delta;
+    ui.taskIdx += delta;
   }
 }
 
 function add() {
-  ui.editing = ui.focus === 'loops'
-    ? { kind: 'new-loop' }
-    : { kind: 'new-task', pane: ui.focus };
+  ui.editing = { kind: ui.focus === 'loops' ? 'new-loop' : 'new-task' };
 }
 
 function rename() {
@@ -565,10 +570,10 @@ function toggleDone() {
   if (task) mutate(() => { task.done = !task.done; task.doneAt = task.done ? Date.now() : null; });
 }
 
-function toggleWaiting() {
+function toggleMarker(tok) {
   const task = selTask();
   if (!task || task.done) return;
-  mutate(() => { task.title = isWaiting(task) ? stripWait(task.title) : `${task.title} @w`; });
+  mutate(() => { task.title = toggleToken(task.title, tok); });
 }
 
 function cut() {
@@ -602,7 +607,8 @@ const keymap = {
   r: rename,
   d: remove,
   ' ': toggleDone,
-  w: toggleWaiting,
+  w: () => toggleMarker('@w'),
+  i: () => toggleMarker('@i'),
   x: cut,
   p: paste,
   u: undo,
@@ -630,14 +636,12 @@ document.getElementById('loops').addEventListener('click', e => {
   render();
 });
 
-Object.entries(LISTS).forEach(([pane, [key]]) => {
-  document.getElementById(pane).addEventListener('click', e => {
-    if (ui.editing) return;
-    const row = e.target.closest('.row[data-i]');
-    ui.focus = pane;
-    if (row) ui[key] = +row.dataset.i;
-    render();
-  });
+document.getElementById('tasks').addEventListener('click', e => {
+  if (ui.editing) return;
+  const row = e.target.closest('.row[data-i]');
+  ui.focus = 'tasks';
+  if (row) ui.taskIdx = +row.dataset.i;
+  render();
 });
 
 // ── Seed ──────────────────────────────────────────────────────────────────────
@@ -648,7 +652,7 @@ function seed() {
   state.loops = loops;
   const [web, report, guide] = loops;
   [
-    ['Sketch new landing page', web.id],
+    ['Sketch new landing page @i', web.id],
     ['Collect feedback on current site', web.id],
     ['Agent: audit page load times @w', web.id],
     ['Draft sent to finance for review @w', report.id],
