@@ -292,6 +292,7 @@
 
 <header>
   <span id="crumb"></span>
+  <button class="file-btn" id="notifyBtn"></button>
   <button class="file-btn" id="exportBtn" title="Download all loops and tasks as JSON">export</button>
   <button class="file-btn" id="importBtn" title="Replace all data with a JSON export">import</button>
   <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -464,6 +465,7 @@ function render() {
   renderSide('timed', timedTasks(), 'Nothing timed. Put a time like 14:30 in a task.');
   renderSummary();
   renderChrome();
+  renderNotifyBtn();
 
   document.querySelectorAll('.row.sel').forEach(el => el.scrollIntoView({ block: 'nearest' }));
 
@@ -1146,6 +1148,87 @@ importFile.addEventListener('change', async () => {
   if (file) importData(await file.text());
 });
 
+// ── Reminders ─────────────────────────────────────────────────────────────────
+// when a timed task's time comes, show a system notification (if allowed) plus a
+// flash and a tab title marker. Only works while the page is open.
+
+const NOTIFIED_KEY = 'loopy-notified';
+const LATE_WINDOW = 15;   // still remind up to 15 min late, e.g. after the laptop wakes up
+const PAGE_TITLE = document.title;
+const canNotify = 'Notification' in window;
+
+const todayKey = () => new Date().toLocaleDateString('sv');   // local YYYY-MM-DD
+
+// { date, sent: ["taskId@minutes", ...] }, reset every day; keyed on the time
+// as well, so changing a task's time reminds again
+function loadNotified() {
+  try {
+    const n = JSON.parse(localStorage.getItem(NOTIFIED_KEY));
+    if (n && n.date === todayKey()) return n;
+  } catch {}
+  return { date: todayKey(), sent: [] };
+}
+
+function checkReminders() {
+  const now = nowMinutes();
+  const today = new Date().setHours(0, 0, 0, 0);
+  const notified = loadNotified();
+  const due = timedTasks().filter(t => {
+    const time = timeOf(t);
+    return time <= now && now - time <= LATE_WINDOW
+      && (t.createdAt || 0) < today + (time + 1) * 60_000   // not for tasks created after their minute
+      && !notified.sent.includes(`${t.id}@${time}`);
+  });
+  if (!due.length) return;
+
+  due.forEach(t => {
+    notified.sent.push(`${t.id}@${timeOf(t)}`);
+    remind(t);
+  });
+  localStorage.setItem(NOTIFIED_KEY, JSON.stringify(notified));
+  const last = due[due.length - 1];
+  document.title = `● ${fmtTime(timeOf(last))} ${displayTitle(last)}`;
+  ui.flash = { text: `⏰ ${due.map(t => `${fmtTime(timeOf(t))} ${displayTitle(t)}`).join(', ')}` };
+  if (!ui.editing) render();
+}
+
+function remind(t) {
+  if (!canNotify || Notification.permission !== 'granted') return;
+  const n = new Notification(`${fmtTime(timeOf(t))} ${displayTitle(t)}`, {
+    body: state.loops.find(l => l.id === t.loopId)?.title || 'loopy-tasks',
+    tag: t.id,
+  });
+  n.onclick = () => { window.focus(); n.close(); };
+}
+
+// the title marker stays until you come back to the page
+const clearTitle = () => { document.title = PAGE_TITLE; };
+window.addEventListener('focus', clearTitle);
+document.addEventListener('keydown', clearTitle);
+
+function renderNotifyBtn() {
+  const btn = document.getElementById('notifyBtn');
+  const perm = canNotify ? Notification.permission : 'unsupported';
+  btn.textContent = { denied: 'reminders blocked', unsupported: 'reminders n/a' }[perm] || 'enable reminders';
+  btn.hidden = perm === 'granted';
+  btn.title = {
+    denied: 'Notifications are blocked: allow them in the browser\'s site settings (and macOS System Settings → Notifications)',
+    unsupported: 'This browser has no notifications; timed tasks still flash in the status bar',
+  }[perm] || 'Get a system notification when a timed task is due';
+}
+
+document.getElementById('notifyBtn').addEventListener('click', async e => {
+  e.currentTarget.blur();
+  if (canNotify && Notification.permission === 'default') await Notification.requestPermission();
+  if (canNotify && Notification.permission === 'granted') {
+    new Notification('loopy-tasks', { body: 'Reminders are on for timed tasks.' });
+  } else if (location.protocol === 'file:') {
+    // Chrome never shows the permission prompt for files opened from disk
+    ui.flash = { text: 'browsers don\'t allow notifications for file:// pages — serve it, e.g. python3 -m http.server, then open http://localhost:8000', error: true };
+  }
+  render();
+});
+
 // ── Seed ──────────────────────────────────────────────────────────────────────
 
 function seed() {
@@ -1184,6 +1267,8 @@ render();
 
 // keep "due" highlighting current; skip while typing so the input isn't reset
 setInterval(() => { if (!ui.editing) render(); }, 60_000);
+checkReminders();
+setInterval(checkReminders, 15_000);
 </script>
 </body>
 </html>
