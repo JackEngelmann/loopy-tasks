@@ -24,6 +24,7 @@
     --cut: #c0392b;
     --wait: #2f7f86;
     --imp: #b83280;
+    --mark: #ffe08a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -42,6 +43,7 @@
       --cut: #e57368;
       --wait: #6cc4cc;
       --imp: #f08bc0;
+      --mark: #6b5512;
     }
   }
 
@@ -196,6 +198,20 @@
     font-weight: 600;
   }
   footer .clip { color: var(--cut); }
+  #searchBox { color: var(--text); }
+  #searchBox input {
+    width: 28ch;
+    font: inherit;
+    color: var(--text);
+    background: none;
+    border: none;
+    outline: none;
+  }
+  #searchInfo { color: var(--text-2); }
+  .no-match { color: var(--cut); }
+
+  /* search hits */
+  mark { background: var(--mark); color: inherit; border-radius: 2px; }
   footer kbd { font: inherit; color: var(--text-2); }
   footer .spacer { flex: 1; }
 </style>
@@ -229,7 +245,14 @@
   </div>
 </main>
 
-<footer id="status"></footer>
+<footer id="status">
+  <span class="mode" id="mode"></span>
+  <span id="searchBox" hidden>/<input id="searchInput" autocomplete="off" spellcheck="false"></span>
+  <span id="searchInfo"></span>
+  <span class="clip" id="clip"></span>
+  <span class="spacer"></span>
+  <span id="hints"></span>
+</footer>
 
 <script>
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -245,9 +268,11 @@ const ui = {
   focus: 'loops',     // one of PANES
   loopIdx: 0,         // indexes loopsList(): virtual views first, then the real loops
   taskIdx: 0,
-  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename', id? }
+  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename', id?, at?, anchorId?, below? }
   cutId: null,
   showDone: false,
+  search: null,       // see the Search section
+  flash: null,        // short note in the status bar, cleared on the next key
 };
 
 function load() {
@@ -331,6 +356,7 @@ function clamp() {
 
 function render() {
   clamp();
+  dropStaleSearch();
   renderLoops();
   renderTasks();
   renderSide('important', importantTasks(), 'Nothing important. Press i on a task.');
@@ -345,6 +371,7 @@ function render() {
     inp.focus();
     inp.setSelectionRange(inp.value.length, inp.value.length);
   }
+  if (ui.search && ui.search.typing && document.activeElement !== searchInput) searchInput.focus();
 }
 
 function editInput(value) {
@@ -359,7 +386,7 @@ function renderLoops() {
     const n = openTasks(null).length;
     const cls = ['row', 'virtual', `virtual-${l.kind}`, sel(i) && 'sel', i === VIRTUAL.length - 1 && 'gap-after']
       .filter(Boolean).join(' ');
-    return `<li class="${cls}" data-i="${i}"><span class="name">${l.title}</span><span class="count">${n}</span></li>`;
+    return `<li class="${cls}" data-i="${i}"><span class="name">${highlight(l.title, 'loops')}</span><span class="count">${n}</span></li>`;
   });
 
   state.loops.forEach((l, j) => {
@@ -379,14 +406,14 @@ function renderLoops() {
       status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
     const name = ed && ed.kind === 'rename' && ed.id === l.id
       ? editInput(l.title)
-      : `<span class="name">${esc(l.title)}</span>`;
+      : `<span class="name">${highlight(l.title, 'loops')}</span>`;
     const star = open.some(isImportant) ? `<span class="star">★</span>` : '';
     rows.push(`<li class="${cls}" data-i="${i}">
       <div class="loop-line">${name}${star}<span class="counts">${counts}</span></div>
       <div class="loop-next"><span class="name">${nextLine}</span>${more ? `<span class="counts">+${more}</span>` : ''}</div>
     </li>`);
   });
-  if (ed && ed.kind === 'new-loop') rows.push(`<li class="row sel">${editInput('')}</li>`);
+  if (ed && ed.kind === 'new-loop') rows.splice(VIRTUAL.length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
 
   const stale = state.loops.filter(l => loopStatus(l) === 'stale').length;
@@ -413,13 +440,15 @@ function taskRow(t, i, { selected, showTag, other, marks }) {
     other && 'other',
     !t.done && time !== null && time <= nowMinutes() && 'due',
     t.id === ui.cutId && 'cut'].filter(Boolean).join(' ');
+  // search hits are highlighted in the middle pane only (marks is set there)
+  const hl = s => marks ? highlight(s, 'tasks') : esc(s);
   const l = loopById(t.loopId);
-  const tag = showTag ? `<span class="tag${l ? '' : ' none'}">[${l ? esc(l.title) : '–'}]</span>` : '';
+  const tag = showTag ? `<span class="tag${l ? '' : ' none'}">[${l ? hl(l.title) : '–'}]</span>` : '';
   const name = ed && ed.kind === 'rename' && ed.id === t.id
     ? editInput(t.title)
-    : `<span class="name">${esc(displayTitle(t))}</span>`;
+    : `<span class="name">${hl(displayTitle(t))}</span>`;
   const check = t.done ? '✓' : isWaiting(t) ? '◷' : next ? '▸' : '·';
-  const timeEl = time !== null ? `<span class="time">${fmtTime(time)}</span>` : '';
+  const timeEl = time !== null ? `<span class="time">${hl(fmtTime(time))}</span>` : '';
   const star = !t.done && isImportant(t) ? `<span class="star">★</span>` : '';
   return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${star}${timeEl}${tag}${name}</li>`;
 }
@@ -439,11 +468,11 @@ function renderTasks() {
     // highlight next actions (the side panels don't)
     marks: true,
   }));
-  if (adding) rows.push(newTaskRow());
+  if (adding) rows.splice(ui.editing.at, 0, newTaskRow());
   if (!rows.length) {
     rows.push(loop.id === null
-      ? `<li class="empty">No tasks. Press a to add one.</li>`
-      : `<li class="empty stale">No next action. Press a to add one.</li>`);
+      ? `<li class="empty">No tasks. Press o to add one.</li>`
+      : `<li class="empty stale">No next action. Press o to add one.</li>`);
   }
   document.getElementById('tasks').innerHTML = rows.join('');
 
@@ -478,17 +507,148 @@ function renderChrome() {
     `loops / <b>${esc(loop.title)}</b>` + (task ? ` / ${esc(displayTitle(task))}` : '');
 
   const cut = state.tasks.find(t => t.id === ui.cutId);
+  const typing = ui.search && ui.search.typing;
   const hints = ui.editing
     ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>@i</kbd> important  <kbd>14:30</kbd> timed'
+    : typing
+      ? '<kbd>enter</kbd> confirm  <kbd>esc</kbd> cancel'
     : ui.focus === 'loops'
-      ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>a</kbd> new loop  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>u</kbd> undo'
-      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>a</kbd> new  <kbd>space</kbd> done  <kbd>w</kbd> waiting  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>u</kbd> undo`;
-  document.getElementById('status').innerHTML = `
-    <span class="mode">${ui.editing ? 'INSERT' : ui.focus.toUpperCase()}</span>
-    ${cut ? `<span class="clip">cut: ${esc(displayTitle(cut))}</span>` : ''}
-    <span class="spacer"></span>
-    <span>${hints}</span>`;
+      ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>o/O</kbd> new loop below/above  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo'
+      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>o/O</kbd> new below/above  <kbd>space</kbd> done  <kbd>w</kbd> waiting  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo`;
+
+  document.getElementById('mode').textContent = ui.editing ? 'INSERT' : typing ? 'SEARCH' : ui.focus.toUpperCase();
+  document.getElementById('searchBox').hidden = !typing;
+  document.getElementById('searchInfo').innerHTML = searchInfo();
+  document.getElementById('clip').textContent = cut ? `cut: ${displayTitle(cut)}` : '';
+  document.getElementById('hints').innerHTML = hints;
 }
+
+// ── Search ────────────────────────────────────────────────────────────────────
+// "/" finds things in the focused pane and jumps to them (yazi style); nothing is hidden.
+// ui.search = { pane, loopIdx, query, typing, origin: { loopIdx, taskIdx } }
+
+// smart case: lowercase queries ignore case, any capital makes it exact
+function findAll(text, q) {
+  const exact = q !== q.toLowerCase();
+  const hay = exact ? text : text.toLowerCase();
+  const needle = exact ? q : q.toLowerCase();
+  const found = [];
+  for (let j = hay.indexOf(needle); j !== -1; j = hay.indexOf(needle, j + needle.length)) found.push(j);
+  return found;
+}
+
+const searching = pane => ui.search && ui.search.query && ui.search.pane === pane;
+
+function highlight(text, pane) {
+  if (!searching(pane)) return esc(text);
+  const q = ui.search.query;
+  let out = '', i = 0;
+  for (const j of findAll(text, q)) {
+    out += esc(text.slice(i, j)) + `<mark>${esc(text.slice(j, j + q.length))}</mark>`;
+    i = j + q.length;
+  }
+  return out + esc(text.slice(i));
+}
+
+// the text of each row as shown on screen, in list order
+function searchTexts(pane) {
+  if (pane === 'loops') return loopsList().map(l => l.title);
+  const inAll = currentLoop().id === null;
+  return currentTasks().map(t => {
+    const time = timeOf(t), l = loopById(t.loopId);
+    return [time !== null && fmtTime(time), inAll && l && l.title, displayTitle(t)].filter(Boolean).join(' ');
+  });
+}
+
+function matchIndexes() {
+  const s = ui.search;
+  if (!s || !s.query) return [];
+  return searchTexts(s.pane).flatMap((txt, i) => findAll(txt, s.query).length ? [i] : []);
+}
+
+const searchCursor = () => ui.search.pane === 'loops' ? ui.loopIdx : ui.taskIdx;
+function setSearchCursor(i) {
+  if (ui.search.pane === 'tasks') return void (ui.taskIdx = i);
+  if (i !== ui.loopIdx) ui.taskIdx = 0;
+  ui.loopIdx = i;
+}
+
+// move to the nearest match in `dir`, wrapping around; `inclusive` lets the start row count
+function jumpToMatch(from, dir, inclusive) {
+  const hits = matchIndexes();
+  const n = searchTexts(ui.search.pane).length;
+  for (let k = inclusive ? 0 : 1; k <= n && hits.length; k++) {
+    const i = ((from + dir * k) % n + n) % n;
+    if (!hits.includes(i)) continue;
+    ui.flash = (dir > 0 ? from + k >= n : from - k < 0) ? 'search wrapped' : null;
+    setSearchCursor(i);
+    return;
+  }
+}
+
+function startSearch() {
+  ui.search = {
+    pane: ui.focus, loopIdx: ui.loopIdx, query: '', typing: true,
+    origin: { loopIdx: ui.loopIdx, taskIdx: ui.taskIdx },
+  };
+  searchInput.value = '';
+}
+
+function endSearchTyping(confirm) {
+  const s = ui.search;
+  if (!confirm) {
+    ui.loopIdx = s.origin.loopIdx;
+    ui.taskIdx = s.origin.taskIdx;
+  }
+  if (confirm && s.query) s.typing = false;
+  else ui.search = null;
+  searchInput.blur();
+  render();
+}
+
+function searchNext(dir) {
+  const s = ui.search;
+  if (s && s.query && s.pane === ui.focus) jumpToMatch(searchCursor(), dir, false);
+}
+
+function searchInfo() {
+  const s = ui.search;
+  if (!s || !s.query) return '';
+  const prefix = s.typing ? '' : `/${esc(s.query)}  `;
+  const hits = matchIndexes();
+  if (!hits.length) return `${prefix}<span class="no-match">no match</span>`;
+  const pos = hits.indexOf(searchCursor()) + 1;
+  return `${prefix}${pos || '-'}/${hits.length}` + (ui.flash ? `  ${ui.flash}` : '');
+}
+
+// a confirmed search ends once you leave its pane, or its loop for a task search
+function dropStaleSearch() {
+  const s = ui.search;
+  if (!s || s.typing) return;
+  if (s.pane !== ui.focus || (s.pane === 'tasks' && s.loopIdx !== ui.loopIdx)) ui.search = null;
+}
+
+const searchInput = document.getElementById('searchInput');
+
+// typing re-searches from where the cursor was when "/" was pressed
+searchInput.addEventListener('input', () => {
+  const s = ui.search;
+  s.query = searchInput.value;
+  ui.loopIdx = s.origin.loopIdx;
+  ui.taskIdx = s.origin.taskIdx;
+  if (s.query) jumpToMatch(searchCursor(), 1, true);
+  render();
+});
+
+searchInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') { e.preventDefault(); endSearchTyping(true); }
+  else if (e.key === 'Escape') { e.preventDefault(); endSearchTyping(false); }
+});
+
+searchInput.addEventListener('blur', () => {
+  if (ui.search && ui.search.typing) endSearchTyping(true);
+});
 
 // ── Editing ───────────────────────────────────────────────────────────────────
 
@@ -499,11 +659,16 @@ function commitEdit(value) {
   if (!value) return render();
 
   if (ed.kind === 'new-loop') {
-    mutate(() => state.loops.push({ id: uid(), title: value, createdAt: Date.now() }));
-    ui.loopIdx = VIRTUAL.length + state.loops.length - 1;
+    mutate(() => state.loops.splice(ed.at, 0, { id: uid(), title: value, createdAt: Date.now() }));
+    ui.loopIdx = VIRTUAL.length + ed.at;
   } else if (ed.kind === 'new-task') {
     const task = { id: uid(), title: value, loopId: currentLoop().id, done: false, createdAt: Date.now() };
-    mutate(() => state.tasks.push(task));
+    mutate(() => {
+      // insert next to the task the cursor was on, or at the end if there was none
+      const anchor = state.tasks.findIndex(t => t.id === ed.anchorId);
+      if (anchor < 0) state.tasks.push(task);
+      else state.tasks.splice(anchor + (ed.below ? 1 : 0), 0, task);
+    });
     ui.focus = 'tasks';
     ui.taskIdx = currentTasks().indexOf(task);
   } else if (ed.kind === 'rename') {
@@ -573,8 +738,21 @@ function shift(delta) {
   }
 }
 
-function add() {
-  ui.editing = { kind: ui.focus === 'loops' ? 'new-loop' : 'new-task' };
+// o / O: new item below / above the selected one; `at` is where the input row shows
+function add(below) {
+  if (ui.focus === 'loops') {
+    // on "All", new loops go to the top of the real loops
+    const i = ui.loopIdx - VIRTUAL.length;
+    ui.editing = { kind: 'new-loop', at: i < 0 ? 0 : i + (below ? 1 : 0) };
+  } else {
+    const anchor = selTask();
+    ui.editing = {
+      kind: 'new-task',
+      anchorId: anchor && anchor.id,
+      below,
+      at: anchor ? ui.taskIdx + (below ? 1 : 0) : currentTasks().length,
+    };
+  }
 }
 
 function rename() {
@@ -635,7 +813,8 @@ const keymap = {
   l: () => focusPane(1),     ArrowRight: () => focusPane(1),
   h: () => focusPane(-1),    ArrowLeft: () => focusPane(-1),
   Enter: () => { if (ui.focus === 'loops') ui.focus = 'tasks'; else toggleDone(); },
-  a: add,
+  o: () => add(true),
+  O: () => add(false),
   r: rename,
   d: remove,
   ' ': toggleDone,
@@ -645,14 +824,18 @@ const keymap = {
   p: paste,
   u: undo,
   '.': () => { ui.showDone = !ui.showDone; },
-  Escape: () => { ui.cutId = null; },
+  '/': startSearch,
+  n: () => searchNext(1),
+  N: () => searchNext(-1),
+  Escape: () => { ui.cutId = null; ui.search = null; },
 };
 
 document.addEventListener('keydown', e => {
-  if (ui.editing || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (ui.editing || (ui.search && ui.search.typing) || e.metaKey || e.ctrlKey || e.altKey) return;
   const fn = keymap[e.key];
   if (!fn) return;
   e.preventDefault();
+  ui.flash = null;
   fn();
   render();
 });
