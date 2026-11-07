@@ -6,6 +6,7 @@
 <title>loops</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
 
   :root {
     color-scheme: light dark;
@@ -58,11 +59,28 @@
   }
 
   header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 14px;
     color: var(--text-2);
     flex-shrink: 0;
   }
   header b { color: var(--text); font-weight: 600; }
+  #crumb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-btn {
+    font: inherit;
+    font-size: 12px;
+    color: var(--text-2);
+    background: var(--pane);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 8px;
+    cursor: pointer;
+  }
+  .file-btn:hover { color: var(--text); border-color: var(--sel); }
+  footer .flash { color: var(--text-2); }
+  footer .flash.error { color: var(--cut); }
 
   main {
     flex: 1;
@@ -210,6 +228,25 @@
   #searchInfo { color: var(--text-2); }
   .no-match { color: var(--cut); }
 
+  /* template mode: tinted panes and a badge so it's never mistaken for real loops */
+  footer .mode.tpl { background: var(--imp); }
+  .template-mode #loopsPane, .template-mode #tasksPane { border-style: dashed; }
+  .template-mode .pane.focused { border-color: var(--imp); }
+  .template-mode .pane.focused .row.sel { background: var(--imp); }
+  .template-mode #loopsTitle { color: var(--imp); }
+
+  /* template picker (t) */
+  #picker {
+    position: fixed;
+    top: 18%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(420px, calc(100vw - 32px));
+    max-height: 60vh;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    z-index: 10;
+  }
+
   /* search hits */
   mark { background: var(--mark); color: inherit; border-radius: 2px; }
   footer kbd { font: inherit; color: var(--text-2); }
@@ -218,11 +255,16 @@
 </head>
 <body>
 
-<header id="crumb"></header>
+<header>
+  <span id="crumb"></span>
+  <button class="file-btn" id="exportBtn" title="Download all loops and tasks as JSON">export</button>
+  <button class="file-btn" id="importBtn" title="Replace all data with a JSON export">import</button>
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+</header>
 
 <main>
   <section class="pane" id="loopsPane">
-    <div class="pane-head"><span>Loops</span><span id="loopsMeta"></span></div>
+    <div class="pane-head"><span id="loopsTitle">Loops</span><span id="loopsMeta"></span></div>
     <ul id="loops"></ul>
   </section>
   <section class="pane" id="tasksPane">
@@ -245,11 +287,18 @@
   </div>
 </main>
 
+<div class="pane focused" id="picker" hidden>
+  <div class="pane-head"><span>New loop from template</span></div>
+  <ul id="pickerList"></ul>
+</div>
+
 <footer id="status">
+  <span class="mode tpl" id="tplBadge" hidden>TEMPLATES</span>
   <span class="mode" id="mode"></span>
   <span id="searchBox" hidden>/<input id="searchInput" autocomplete="off" spellcheck="false"></span>
   <span id="searchInfo"></span>
   <span class="clip" id="clip"></span>
+  <span class="flash" id="flash"></span>
   <span class="spacer"></span>
   <span id="hints"></span>
 </footer>
@@ -258,7 +307,8 @@
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'loops-v1';
-let state = { loops: [], tasks: [] };
+// templates have the same shape as the main data: loops with tasks
+let state = { loops: [], tasks: [], templates: { loops: [], tasks: [] } };
 let history = [];
 
 // navigable panes; the waiting and timed panes on the right are informational only
@@ -272,11 +322,15 @@ const ui = {
   cutId: null,
   showDone: false,
   search: null,       // see the Search section
-  flash: null,        // short note in the status bar, cleared on the next key
+  flash: null,        // { text, error? } note in the status bar, cleared on the next key
+  templates: false,   // template mode: the panes edit templates instead of loops
+  otherCursor: null,  // cursor of the mode you're not in, restored on T
+  picker: null,       // { idx } while choosing a template with t
 };
 
 function load() {
   try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || state; } catch {}
+  state.templates = state.templates || { loops: [], tasks: [] };
 }
 function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -296,10 +350,18 @@ function mutate(fn) {
 // it sits above the real loops
 const ALL = { id: null, title: 'All', kind: 'all' };
 const VIRTUAL = [ALL];
-const loopsList = () => [...VIRTUAL, ...state.loops];
-const currentLoop = () => loopsList()[ui.loopIdx];
-const loopById = id => state.loops.find(l => l.id === id);
-const openTasks = id => state.tasks.filter(t => !t.done && (id === null || t.loopId === id));
+// stand-in when template mode has no templates yet
+const NONE = { id: null, title: 'No templates', kind: 'none' };
+
+// the data the panes edit: your loops, or the templates in template mode.
+// the right column always shows your real tasks (state.tasks).
+const db = () => ui.templates ? state.templates : state;
+const virtuals = () => ui.templates ? [] : VIRTUAL;
+const loopsList = () => [...virtuals(), ...db().loops];
+const currentLoop = () => loopsList()[ui.loopIdx] || NONE;
+// ids are unique across both, so tags resolve in either mode
+const loopById = id => state.loops.find(l => l.id === id) || state.templates.loops.find(l => l.id === id);
+const openTasks = id => db().tasks.filter(t => !t.done && (id === null || t.loopId === id));
 const openCount = id => openTasks(id).length;
 
 // "@w" / "@i" anywhere in the title mark a task as waiting / important
@@ -324,7 +386,7 @@ const displayTitle = t => ['@w', '@i'].reduce(stripToken, t.title.replace(TIME_R
 // middle pane: open tasks in order (waiting ones included), then done (if shown);
 // the right column mirrors important, waiting and timed tasks
 function tasksFor(loop) {
-  const ts = state.tasks.filter(t => loop.id === null || t.loopId === loop.id);
+  const ts = db().tasks.filter(t => loop.id === null || t.loopId === loop.id);
   const open = ts.filter(t => !t.done);
   return ui.showDone ? [...open, ...ts.filter(t => t.done)] : open;
 }
@@ -357,6 +419,7 @@ function clamp() {
 function render() {
   clamp();
   dropStaleSearch();
+  renderPicker();
   renderLoops();
   renderTasks();
   renderSide('important', importantTasks(), 'Nothing important. Press i on a task.');
@@ -382,15 +445,15 @@ function renderLoops() {
   const ed = ui.editing;
   const sel = i => i === ui.loopIdx && !(ed && ed.kind === 'new-loop');
 
-  const rows = VIRTUAL.map((l, i) => {
+  const rows = virtuals().map((l, i) => {
     const n = openTasks(null).length;
     const cls = ['row', 'virtual', `virtual-${l.kind}`, sel(i) && 'sel', i === VIRTUAL.length - 1 && 'gap-after']
       .filter(Boolean).join(' ');
     return `<li class="${cls}" data-i="${i}"><span class="name">${highlight(l.title, 'loops')}</span><span class="count">${n}</span></li>`;
   });
 
-  state.loops.forEach((l, j) => {
-    const i = VIRTUAL.length + j;
+  db().loops.forEach((l, j) => {
+    const i = virtuals().length + j;
     const open = openTasks(l.id);
     const next = nextOf(l.id);
     const status = loopStatus(l);
@@ -399,11 +462,13 @@ function renderLoops() {
     const more = Math.max(0, doable(l.id).length - 1);
     const counts = waiting ? `◷ ${waiting}` : '';
     const nextLine = next ? `▸ ${esc(displayTitle(next))}`
+      : ui.templates ? 'Empty template'
       : status === 'waiting' ? 'Waiting on something'
       : 'No next action';
+    // templates never go yellow/teal: they aren't work in progress
     const cls = ['row', 'loop', sel(i) && 'sel',
-      status === 'stale' && 'stale',
-      status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
+      !ui.templates && status === 'stale' && 'stale',
+      !ui.templates && status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
     const name = ed && ed.kind === 'rename' && ed.id === l.id
       ? editInput(l.title)
       : `<span class="name">${highlight(l.title, 'loops')}</span>`;
@@ -413,13 +478,16 @@ function renderLoops() {
       <div class="loop-next"><span class="name">${nextLine}</span>${more ? `<span class="counts">+${more}</span>` : ''}</div>
     </li>`);
   });
-  if (ed && ed.kind === 'new-loop') rows.splice(VIRTUAL.length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
+  if (ed && ed.kind === 'new-loop') rows.splice(virtuals().length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
+  if (!rows.length) rows.push(`<li class="empty">No templates yet. Press o to create one.</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
+  document.getElementById('loopsTitle').textContent = ui.templates ? 'Templates' : 'Loops';
 
   const stale = state.loops.filter(l => loopStatus(l) === 'stale').length;
   const waiting = state.loops.filter(l => loopStatus(l) === 'waiting').length;
-  document.getElementById('loopsMeta').textContent =
-    [stale && `! ${stale}`, waiting && `◷ ${waiting}`].filter(Boolean).join('  ');
+  document.getElementById('loopsMeta').textContent = ui.templates
+    ? `${state.templates.loops.length}`
+    : [stale && `! ${stale}`, waiting && `◷ ${waiting}`].filter(Boolean).join('  ');
 }
 
 // a real loop without a next action is "waiting" if something is waiting, else "stale"
@@ -438,7 +506,8 @@ function taskRow(t, i, { selected, showTag, other, marks }) {
     marks && !next && !t.done && 'backlog',
     t.done && 'done',
     other && 'other',
-    !t.done && time !== null && time <= nowMinutes() && 'due',
+    // template times aren't appointments, so they're never due
+    !t.done && time !== null && time <= nowMinutes() && !state.templates.tasks.includes(t) && 'due',
     t.id === ui.cutId && 'cut'].filter(Boolean).join(' ');
   // search hits are highlighted in the middle pane only (marks is set there)
   const hl = s => marks ? highlight(s, 'tasks') : esc(s);
@@ -465,19 +534,22 @@ function renderTasks() {
     selected: ui.focus === 'tasks' && i === ui.taskIdx && !adding,
     // the [loop] tag only adds information in the virtual views
     showTag: loop.id === null,
-    // highlight next actions (the side panels don't)
-    marks: true,
+    // highlight next actions (not in templates, and not in the side panels)
+    marks: !ui.templates,
   }));
   if (adding) rows.splice(ui.editing.at, 0, newTaskRow());
   if (!rows.length) {
-    rows.push(loop.id === null
-      ? `<li class="empty">No tasks. Press o to add one.</li>`
+    rows.push(
+      loop.kind === 'none' ? `<li class="empty">Create a template in the left pane first.</li>`
+      : ui.templates ? `<li class="empty">Empty template. Press o to add a task.</li>`
+      : loop.id === null ? `<li class="empty">No tasks. Press o to add one.</li>`
       : `<li class="empty stale">No next action. Press o to add one.</li>`);
   }
   document.getElementById('tasks').innerHTML = rows.join('');
 
+  const open = ts.filter(t => !t.done).length;
   document.getElementById('tasksTitle').textContent = loop.title;
-  document.getElementById('tasksMeta').textContent = `${ts.filter(t => !t.done).length} open`;
+  document.getElementById('tasksMeta').textContent = ui.templates ? `${open} tasks` : `${open} open`;
 }
 
 // read-only lists in the right column
@@ -485,7 +557,7 @@ function renderSide(id, ts, emptyMsg) {
   const loop = currentLoop();
   const rows = ts.map((t, i) => taskRow(t, i, {
     showTag: true,
-    other: loop.id !== null && t.loopId !== loop.id,
+    other: !ui.templates && loop.id !== null && t.loopId !== loop.id,
   }));
   if (!rows.length) rows.push(`<li class="empty">${emptyMsg}</li>`);
   document.getElementById(id).innerHTML = rows.join('');
@@ -494,32 +566,42 @@ function renderSide(id, ts, emptyMsg) {
 
 function sideMeta(ts, loop) {
   if (!ts.length) return '';
-  if (loop.id === null) return `${ts.length}`;
+  if (loop.id === null || ui.templates) return `${ts.length}`;
   return `${ts.filter(t => t.loopId === loop.id).length} here · ${ts.length} total`;
 }
 
 function renderChrome() {
   PANES.forEach(p => document.getElementById(p + 'Pane').classList.toggle('focused', ui.focus === p));
+  document.body.classList.toggle('template-mode', ui.templates);
 
   const loop = currentLoop();
   const task = selTask();
   document.getElementById('crumb').innerHTML =
-    `loops / <b>${esc(loop.title)}</b>` + (task ? ` / ${esc(displayTitle(task))}` : '');
+    `${ui.templates ? 'templates' : 'loops'} / <b>${esc(loop.title)}</b>` + (task ? ` / ${esc(displayTitle(task))}` : '');
 
-  const cut = state.tasks.find(t => t.id === ui.cutId);
+  const cut = db().tasks.find(t => t.id === ui.cutId);
   const typing = ui.search && ui.search.typing;
   const hints = ui.editing
     ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>@i</kbd> important  <kbd>14:30</kbd> timed'
     : typing
       ? '<kbd>enter</kbd> confirm  <kbd>esc</kbd> cancel'
+    : ui.picker
+      ? '<kbd>j/k</kbd> select  <kbd>enter</kbd> create loop  <kbd>esc</kbd> cancel'
+    : ui.templates
+      ? `<kbd>T</kbd> back to loops  <kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h/l</kbd> panes  <kbd>o/O</kbd> new ${ui.focus === 'loops' ? 'template' : 'task'} below/above  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>w/i</kbd> waiting/important  <kbd>/</kbd> search  <kbd>u</kbd> undo`
     : ui.focus === 'loops'
-      ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>o/O</kbd> new loop below/above  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo'
+      ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>t</kbd> new from template  <kbd>T</kbd> templates  <kbd>o/O</kbd> new loop below/above  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo'
       : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>o/O</kbd> new below/above  <kbd>space</kbd> done  <kbd>w</kbd> waiting  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo`;
 
-  document.getElementById('mode').textContent = ui.editing ? 'INSERT' : typing ? 'SEARCH' : ui.focus.toUpperCase();
+  document.getElementById('mode').textContent = ui.editing ? 'INSERT' : typing ? 'SEARCH'
+    : ui.picker ? 'TEMPLATE' : ui.focus.toUpperCase();
+  document.getElementById('tplBadge').hidden = !ui.templates;
   document.getElementById('searchBox').hidden = !typing;
   document.getElementById('searchInfo').innerHTML = searchInfo();
   document.getElementById('clip').textContent = cut ? `cut: ${displayTitle(cut)}` : '';
+  const flash = document.getElementById('flash');
+  flash.textContent = ui.flash ? ui.flash.text : '';
+  flash.classList.toggle('error', !!(ui.flash && ui.flash.error));
   document.getElementById('hints').innerHTML = hints;
 }
 
@@ -580,7 +662,7 @@ function jumpToMatch(from, dir, inclusive) {
   for (let k = inclusive ? 0 : 1; k <= n && hits.length; k++) {
     const i = ((from + dir * k) % n + n) % n;
     if (!hits.includes(i)) continue;
-    ui.flash = (dir > 0 ? from + k >= n : from - k < 0) ? 'search wrapped' : null;
+    ui.flash = (dir > 0 ? from + k >= n : from - k < 0) ? { text: 'search wrapped' } : null;
     setSearchCursor(i);
     return;
   }
@@ -618,7 +700,7 @@ function searchInfo() {
   const hits = matchIndexes();
   if (!hits.length) return `${prefix}<span class="no-match">no match</span>`;
   const pos = hits.indexOf(searchCursor()) + 1;
-  return `${prefix}${pos || '-'}/${hits.length}` + (ui.flash ? `  ${ui.flash}` : '');
+  return `${prefix}${pos || '-'}/${hits.length}`;
 }
 
 // a confirmed search ends once you leave its pane, or its loop for a task search
@@ -659,20 +741,21 @@ function commitEdit(value) {
   if (!value) return render();
 
   if (ed.kind === 'new-loop') {
-    mutate(() => state.loops.splice(ed.at, 0, { id: uid(), title: value, createdAt: Date.now() }));
-    ui.loopIdx = VIRTUAL.length + ed.at;
+    mutate(() => db().loops.splice(ed.at, 0, { id: uid(), title: value, createdAt: Date.now() }));
+    ui.loopIdx = virtuals().length + ed.at;
   } else if (ed.kind === 'new-task') {
     const task = { id: uid(), title: value, loopId: currentLoop().id, done: false, createdAt: Date.now() };
     mutate(() => {
       // insert next to the task the cursor was on, or at the end if there was none
-      const anchor = state.tasks.findIndex(t => t.id === ed.anchorId);
-      if (anchor < 0) state.tasks.push(task);
-      else state.tasks.splice(anchor + (ed.below ? 1 : 0), 0, task);
+      const tasks = db().tasks;
+      const anchor = tasks.findIndex(t => t.id === ed.anchorId);
+      if (anchor < 0) tasks.push(task);
+      else tasks.splice(anchor + (ed.below ? 1 : 0), 0, task);
     });
     ui.focus = 'tasks';
     ui.taskIdx = currentTasks().indexOf(task);
   } else if (ed.kind === 'rename') {
-    const item = loopById(ed.id) || state.tasks.find(t => t.id === ed.id);
+    const item = loopById(ed.id) || db().tasks.find(t => t.id === ed.id);
     if (item) mutate(() => { item.title = value; });
   }
   render();
@@ -724,16 +807,16 @@ function swap(arr, i, j) { [arr[i], arr[j]] = [arr[j], arr[i]]; }
 // J/K: move the selected item down/up; the virtual views stay pinned on top
 function shift(delta) {
   if (ui.focus === 'loops') {
-    const i = ui.loopIdx - VIRTUAL.length, j = i + delta;
-    if (i < 0 || j < 0 || j >= state.loops.length) return;
-    mutate(() => swap(state.loops, i, j));
+    const i = ui.loopIdx - virtuals().length, j = i + delta;
+    if (i < 0 || j < 0 || j >= db().loops.length) return;
+    mutate(() => swap(db().loops, i, j));
     ui.loopIdx += delta;
   } else {
     // swap with the visible neighbour, so it works inside a filtered view
     const ts = currentTasks();
     const a = ts[ui.taskIdx], b = ts[ui.taskIdx + delta];
     if (!a || !b || a.done !== b.done) return;
-    mutate(() => swap(state.tasks, state.tasks.indexOf(a), state.tasks.indexOf(b)));
+    mutate(() => { const ts = db().tasks; swap(ts, ts.indexOf(a), ts.indexOf(b)); });
     ui.taskIdx += delta;
   }
 }
@@ -742,9 +825,10 @@ function shift(delta) {
 function add(below) {
   if (ui.focus === 'loops') {
     // on "All", new loops go to the top of the real loops
-    const i = ui.loopIdx - VIRTUAL.length;
+    const i = ui.loopIdx - virtuals().length;
     ui.editing = { kind: 'new-loop', at: i < 0 ? 0 : i + (below ? 1 : 0) };
   } else {
+    if (currentLoop().kind === 'none') return;   // no template to add tasks to
     const anchor = selTask();
     ui.editing = {
       kind: 'new-task',
@@ -766,16 +850,19 @@ function remove() {
     if (!loop.id) return;
     // deleting a loop keeps its tasks, unassigned
     mutate(() => {
-      state.tasks.forEach(t => { if (t.loopId === loop.id) t.loopId = null; });
-      state.loops = state.loops.filter(l => l.id !== loop.id);
+      const d = db();
+      if (ui.templates) d.tasks = d.tasks.filter(t => t.loopId !== loop.id);   // a template's tasks go with it
+      else d.tasks.forEach(t => { if (t.loopId === loop.id) t.loopId = null; });
+      d.loops = d.loops.filter(l => l.id !== loop.id);
     });
   } else {
     const task = selTask();
-    if (task) mutate(() => { state.tasks = state.tasks.filter(t => t.id !== task.id); });
+    if (task) mutate(() => { db().tasks = db().tasks.filter(t => t.id !== task.id); });
   }
 }
 
 function toggleDone() {
+  if (ui.templates) return;   // templates are never done; their copies are
   const task = selTask();
   if (task) mutate(() => { task.done = !task.done; task.doneAt = task.done ? Date.now() : null; });
 }
@@ -793,7 +880,7 @@ function cut() {
 
 // pasting into "All" unassigns the task
 function paste() {
-  const task = state.tasks.find(t => t.id === ui.cutId);
+  const task = db().tasks.find(t => t.id === ui.cutId);
   if (!task) return;
   mutate(() => { task.loopId = currentLoop().id; });
   ui.cutId = null;
@@ -803,6 +890,61 @@ function undo() {
   if (!history.length) return;
   state = JSON.parse(history.pop());
   persist();
+}
+
+// ── Templates ─────────────────────────────────────────────────────────────────
+// T switches the panes between your loops and the templates; each side keeps its cursor.
+// t (outside template mode) picks a template and copies it into a new loop.
+
+function toggleTemplates() {
+  const here = { focus: ui.focus, loopIdx: ui.loopIdx, taskIdx: ui.taskIdx };
+  Object.assign(ui, ui.otherCursor || { focus: 'loops', loopIdx: 0, taskIdx: 0 });
+  ui.otherCursor = here;
+  ui.templates = !ui.templates;
+  ui.search = null;
+  ui.cutId = null;   // a cut task can't be pasted across modes
+}
+
+function openPicker() {
+  if (ui.templates) return;
+  if (!state.templates.loops.length) {
+    ui.flash = { text: 'no templates yet — press T to create one' };
+    return;
+  }
+  ui.picker = { idx: 0 };
+}
+
+function pickerKey(key) {
+  const n = state.templates.loops.length;
+  if (key === 'j' || key === 'ArrowDown') ui.picker.idx = Math.min(n - 1, ui.picker.idx + 1);
+  else if (key === 'k' || key === 'ArrowUp') ui.picker.idx = Math.max(0, ui.picker.idx - 1);
+  else if (key === 'Enter') { createFromTemplate(state.templates.loops[ui.picker.idx]); ui.picker = null; }
+  else if (key === 'Escape') ui.picker = null;
+}
+
+// a new copy every time, placed below the selected loop (at the top when on "All")
+function createFromTemplate(tpl) {
+  const i = ui.loopIdx - VIRTUAL.length;
+  const at = i < 0 ? 0 : i + 1;
+  const loop = { id: uid(), title: tpl.title, createdAt: Date.now() };
+  mutate(() => {
+    state.loops.splice(at, 0, loop);
+    state.templates.tasks
+      .filter(t => t.loopId === tpl.id && !t.done)
+      .forEach(t => state.tasks.push({ id: uid(), title: t.title, loopId: loop.id, done: false, createdAt: Date.now() }));
+  });
+  Object.assign(ui, { loopIdx: VIRTUAL.length + at, taskIdx: 0, focus: 'tasks' });
+  ui.flash = { text: `created "${tpl.title}" from template` };
+}
+
+function renderPicker() {
+  const box = document.getElementById('picker');
+  box.hidden = !ui.picker;
+  if (!ui.picker) return;
+  document.getElementById('pickerList').innerHTML = state.templates.loops.map((l, i) => {
+    const n = state.templates.tasks.filter(t => t.loopId === l.id).length;
+    return `<li class="row${i === ui.picker.idx ? ' sel' : ''}"><span class="name">${esc(l.title)}</span><span class="count">${n}</span></li>`;
+  }).join('');
 }
 
 const keymap = {
@@ -827,11 +969,18 @@ const keymap = {
   '/': startSearch,
   n: () => searchNext(1),
   N: () => searchNext(-1),
+  t: openPicker,
+  T: toggleTemplates,
   Escape: () => { ui.cutId = null; ui.search = null; },
 };
 
 document.addEventListener('keydown', e => {
   if (ui.editing || (ui.search && ui.search.typing) || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (ui.picker) {
+    e.preventDefault();
+    pickerKey(e.key);
+    return render();
+  }
   const fn = keymap[e.key];
   if (!fn) return;
   e.preventDefault();
@@ -859,6 +1008,76 @@ document.getElementById('tasks').addEventListener('click', e => {
   render();
 });
 
+// ── Export / import ───────────────────────────────────────────────────────────
+
+function exportData() {
+  const data = { app: 'loopy-tasks', version: 1, exportedAt: new Date().toISOString(), ...state };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `loopy-tasks-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  ui.flash = { text: `exported ${state.loops.length} loops, ${state.tasks.length} tasks, ${state.templates.loops.length} templates` };
+}
+
+// keep only well-formed entries; throws if the file isn't an export at all
+function parseImport(text) {
+  const data = JSON.parse(text);
+  if (!data || !Array.isArray(data.loops) || !Array.isArray(data.tasks)) {
+    throw new Error('expected { loops: [...], tasks: [...] }');
+  }
+  const t = data.templates;
+  return {
+    ...cleanLoops(data.loops, data.tasks),
+    // templates are optional, for exports made before they existed
+    templates: t && Array.isArray(t.loops) && Array.isArray(t.tasks)
+      ? cleanLoops(t.loops, t.tasks)
+      : { loops: [], tasks: [] },
+  };
+}
+
+function cleanLoops(rawLoops, rawTasks) {
+  const str = v => typeof v === 'string' && v.length > 0;
+  const loops = rawLoops.filter(l => l && str(l.id) && str(l.title));
+  const ids = new Set(loops.map(l => l.id));
+  const tasks = rawTasks
+    .filter(t => t && str(t.id) && str(t.title))
+    .map(t => ({ ...t, done: !!t.done, loopId: ids.has(t.loopId) ? t.loopId : null }));
+  return { loops, tasks };
+}
+
+// replaces everything; one `u` brings the previous data back
+function importData(text) {
+  try {
+    const data = parseImport(text);
+    mutate(() => { state = data; });
+    Object.assign(ui, { focus: 'loops', loopIdx: 0, taskIdx: 0, cutId: null, search: null, templates: false, otherCursor: null });
+    ui.flash = { text: `imported ${data.loops.length} loops, ${data.tasks.length} tasks, ${data.templates.loops.length} templates · u to undo` };
+  } catch (err) {
+    ui.flash = { text: `import failed: ${err.message}`, error: true };
+  }
+  render();
+}
+
+const importFile = document.getElementById('importFile');
+
+// blur the buttons afterwards so space/enter keep driving the lists
+document.getElementById('exportBtn').addEventListener('click', e => {
+  e.currentTarget.blur();
+  exportData();
+  render();
+});
+document.getElementById('importBtn').addEventListener('click', e => {
+  e.currentTarget.blur();
+  importFile.click();
+});
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  importFile.value = '';   // allow re-importing the same file
+  if (file) importData(await file.text());
+});
+
 // ── Seed ──────────────────────────────────────────────────────────────────────
 
 function seed() {
@@ -879,6 +1098,13 @@ function seed() {
     ['Try a dark mode variant?', web.id],
     ['Add a glossary to the guide', guide.id],
   ].forEach(([title, loopId]) => state.tasks.push({ id: uid(), title, loopId, done: false, createdAt: Date.now() }));
+
+  const daily = { id: uid(), title: 'Daily planning', createdAt: Date.now() };
+  state.templates = {
+    loops: [daily],
+    tasks: ['Look at calendar', 'Look at messages', 'Pick 1–2 outcomes for today', 'Standup 09:30']
+      .map(title => ({ id: uid(), title, loopId: daily.id, done: false, createdAt: Date.now() })),
+  };
   persist();
 }
 
