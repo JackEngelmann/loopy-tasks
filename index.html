@@ -65,7 +65,7 @@
   main {
     flex: 1;
     display: grid;
-    grid-template-columns: minmax(200px, 24%) 1fr minmax(240px, 30%);
+    grid-template-columns: minmax(260px, 28%) 1fr minmax(240px, 28%);
     gap: 8px;
     padding: 0 8px;
     min-height: 0;
@@ -100,7 +100,6 @@
   #waitingPane .pane-head span:first-child { color: var(--wait); }
   #importantPane .pane-head span:first-child { color: var(--imp); }
   .star { color: var(--imp); }
-  .row.virtual-important .name, .row.virtual-important .count { color: var(--imp); }
 
   ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 
@@ -118,13 +117,25 @@
 
   /* loops */
   .row.virtual .name { color: var(--text-2); }
-  .row.virtual-waiting .name, .row.virtual-waiting .count { color: var(--wait); }
   .row.gap-after { margin-bottom: 14px; }
+
+  /* real loops: title + counts, then the first next action */
+  .row.loop { flex-direction: column; align-items: stretch; gap: 0; padding: 4px 10px; }
+  /* counts wrap below the title rather than truncating it */
+  .loop-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; min-width: 0; }
+  .loop-line .name { flex: 0 1 auto; font-weight: 600; }
+  .counts { margin-left: auto; color: var(--text-3); font-size: 11px; }
+  .loop-next {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .loop-next .name { font-weight: normal; }
   .row.stale { background: var(--stale-bg); }
-  .row.stale .name, .row.stale .count { color: var(--stale); }
-  .row.stale .count::before { content: '! '; }
-  .row.waiting-loop .name, .row.waiting-loop .count { color: var(--wait); }
-  .row.waiting-loop .count::before { content: '◷ '; }
+  .row.stale .name, .row.stale .loop-next { color: var(--stale); }
+  .row.waiting-loop .name, .row.waiting-loop .loop-next { color: var(--wait); }
 
   /* selection: solid bar in focused pane, faint in the others */
   .pane:not(.focused) .row.sel { background: var(--sel-dim); }
@@ -149,9 +160,12 @@
   .time { color: var(--tag); font-variant-numeric: tabular-nums; }
   .row.due .time { color: var(--stale); font-weight: 600; }
 
+  /* the next action of a loop stands out; the rest of its tasks recede */
+  .row.next .check { color: var(--sel); }
+  .row.backlog .name { color: var(--text-2); }
+
   .empty { padding: 10px; color: var(--text-3); }
   .empty.stale { color: var(--stale); }
-  .empty.wait { color: var(--wait); }
 
   .edit {
     flex: 1;
@@ -229,7 +243,7 @@ const PANES = ['loops', 'tasks'];
 
 const ui = {
   focus: 'loops',     // one of PANES
-  loopIdx: 0,         // indexes loopsList(): virtual "All" and "Waiting" come first
+  loopIdx: 0,         // indexes loopsList(): virtual views first, then the real loops
   taskIdx: 0,
   editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename', id? }
   cutId: null,
@@ -253,11 +267,10 @@ function mutate(fn) {
   persist();
 }
 
-// virtual loops have no id, so tasks created there get no loop
+// the virtual "All" loop has no id, so tasks created there get no loop;
+// it sits above the real loops
 const ALL = { id: null, title: 'All', kind: 'all' };
-const WAITING = { id: null, title: 'Waiting', kind: 'waiting' };
-const IMPORTANT = { id: null, title: 'Important', kind: 'important' };
-const VIRTUAL = [ALL, WAITING, IMPORTANT];
+const VIRTUAL = [ALL];
 const loopsList = () => [...VIRTUAL, ...state.loops];
 const currentLoop = () => loopsList()[ui.loopIdx];
 const loopById = id => state.loops.find(l => l.id === id);
@@ -283,19 +296,24 @@ const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.ge
 
 const displayTitle = t => ['@w', '@i'].reduce(stripToken, t.title.replace(TIME_RE, '$1'));
 
-// each open task lives in tasks or waiting; the timed pane mirrors any task with a time
-const paneOf = t => isWaiting(t) ? 'waiting' : 'tasks';
-
-// middle pane: things you can do now, or everything waiting in the "Waiting" view
+// middle pane: open tasks in order (waiting ones included), then done (if shown);
+// the right column mirrors important, waiting and timed tasks
 function tasksFor(loop) {
-  if (loop.kind === 'waiting') return waitingTasks();
-  if (loop.kind === 'important') return importantTasks();
   const ts = state.tasks.filter(t => loop.id === null || t.loopId === loop.id);
-  const open = ts.filter(t => !t.done && paneOf(t) === 'tasks');
+  const open = ts.filter(t => !t.done);
   return ui.showDone ? [...open, ...ts.filter(t => t.done)] : open;
 }
+
+// a loop's next action is its first open, non-waiting task; reorder with J/K to change it.
+// tasks without a loop stand on their own, so each of them counts as a next action.
+const doable = id => openTasks(id).filter(t => !isWaiting(t));
+const nextOf = id => doable(id)[0];
+function isNext(t) {
+  if (t.done || isWaiting(t)) return false;
+  return t.loopId ? nextOf(t.loopId) === t : true;
+}
 const currentTasks = () => tasksFor(currentLoop());
-const waitingTasks = () => state.tasks.filter(t => !t.done && paneOf(t) === 'waiting');
+const waitingTasks = () => state.tasks.filter(t => !t.done && isWaiting(t));
 // important mirrors tasks wherever they live, waiting ones included
 const importantTasks = () => state.tasks.filter(t => !t.done && isImportant(t));
 const timedTasks = () => state.tasks.filter(t => !t.done && timeOf(t) !== null)
@@ -335,38 +353,62 @@ function editInput(value) {
 
 function renderLoops() {
   const ed = ui.editing;
-  const rows = loopsList().map((l, i) => {
+  const sel = i => i === ui.loopIdx && !(ed && ed.kind === 'new-loop');
+
+  const rows = VIRTUAL.map((l, i) => {
+    const n = openTasks(null).length;
+    const cls = ['row', 'virtual', `virtual-${l.kind}`, sel(i) && 'sel', i === VIRTUAL.length - 1 && 'gap-after']
+      .filter(Boolean).join(' ');
+    return `<li class="${cls}" data-i="${i}"><span class="name">${l.title}</span><span class="count">${n}</span></li>`;
+  });
+
+  state.loops.forEach((l, j) => {
+    const i = VIRTUAL.length + j;
     const open = openTasks(l.id);
-    const n = l.kind === 'waiting' ? waitingTasks().length
-      : l.kind === 'important' ? importantTasks().length
-      : open.length;
-    const cls = ['row',
-      i === ui.loopIdx && !(ed && ed.kind === 'new-loop') && 'sel',
-      l.kind && 'virtual',
-      l.kind && `virtual-${l.kind}`,
-      i === VIRTUAL.length - 1 && 'gap-after',
-      l.id !== null && n === 0 && 'stale',
-      l.id !== null && n > 0 && open.every(isWaiting) && 'waiting-loop'].filter(Boolean).join(' ');
-    const name = ed && ed.kind === 'rename' && ed.id === l.id && l.id
+    const next = nextOf(l.id);
+    const status = loopStatus(l);
+    // waiting count by the title; "+N" = doable tasks queued after the next action
+    const waiting = open.filter(isWaiting).length;
+    const more = Math.max(0, doable(l.id).length - 1);
+    const counts = waiting ? `◷ ${waiting}` : '';
+    const nextLine = next ? `▸ ${esc(displayTitle(next))}`
+      : status === 'waiting' ? 'Waiting on something'
+      : 'No next action';
+    const cls = ['row', 'loop', sel(i) && 'sel',
+      status === 'stale' && 'stale',
+      status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
+    const name = ed && ed.kind === 'rename' && ed.id === l.id
       ? editInput(l.title)
       : `<span class="name">${esc(l.title)}</span>`;
-    const star = l.id !== null && open.some(isImportant) ? `<span class="star">★</span>` : '';
-    return `<li class="${cls}" data-i="${i}">${name}${star}<span class="count">${n}</span></li>`;
+    const star = open.some(isImportant) ? `<span class="star">★</span>` : '';
+    rows.push(`<li class="${cls}" data-i="${i}">
+      <div class="loop-line">${name}${star}<span class="counts">${counts}</span></div>
+      <div class="loop-next"><span class="name">${nextLine}</span>${more ? `<span class="counts">+${more}</span>` : ''}</div>
+    </li>`);
   });
   if (ed && ed.kind === 'new-loop') rows.push(`<li class="row sel">${editInput('')}</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
 
-  const stale = state.loops.filter(l => openCount(l.id) === 0).length;
-  const waiting = state.loops.filter(l => openCount(l.id) > 0 && openTasks(l.id).every(isWaiting)).length;
+  const stale = state.loops.filter(l => loopStatus(l) === 'stale').length;
+  const waiting = state.loops.filter(l => loopStatus(l) === 'waiting').length;
   document.getElementById('loopsMeta').textContent =
     [stale && `! ${stale}`, waiting && `◷ ${waiting}`].filter(Boolean).join('  ');
 }
 
-function taskRow(t, i, { selected, showTag, other }) {
+// a real loop without a next action is "waiting" if something is waiting, else "stale"
+function loopStatus(l) {
+  if (l.id === null || nextOf(l.id)) return 'ok';
+  return openTasks(l.id).some(isWaiting) ? 'waiting' : 'stale';
+}
+
+function taskRow(t, i, { selected, showTag, other, marks }) {
   const ed = ui.editing;
   const time = timeOf(t);
+  const next = marks && isNext(t);
   const cls = ['row',
     selected && 'sel',
+    next && 'next',
+    marks && !next && !t.done && 'backlog',
     t.done && 'done',
     other && 'other',
     !t.done && time !== null && time <= nowMinutes() && 'due',
@@ -376,44 +418,37 @@ function taskRow(t, i, { selected, showTag, other }) {
   const name = ed && ed.kind === 'rename' && ed.id === t.id
     ? editInput(t.title)
     : `<span class="name">${esc(displayTitle(t))}</span>`;
-  const check = t.done ? '✓' : isWaiting(t) ? '◷' : '·';
+  const check = t.done ? '✓' : isWaiting(t) ? '◷' : next ? '▸' : '·';
   const timeEl = time !== null ? `<span class="time">${fmtTime(time)}</span>` : '';
   const star = !t.done && isImportant(t) ? `<span class="star">★</span>` : '';
   return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${star}${timeEl}${tag}${name}</li>`;
 }
 
-function newTaskRow(kind) {
-  const mark = kind === 'waiting' ? '◷' : kind === 'important' ? '★' : '·';
-  return `<li class="row sel"><span class="check">${mark}</span>${editInput('')}</li>`;
+function newTaskRow() {
+  return `<li class="row sel"><span class="check">·</span>${editInput('')}</li>`;
 }
 
 function renderTasks() {
   const loop = currentLoop();
   const adding = ui.editing && ui.editing.kind === 'new-task';
-
-  const rows = currentTasks().map((t, i) => taskRow(t, i, {
+  const ts = currentTasks();
+  const rows = ts.map((t, i) => taskRow(t, i, {
     selected: ui.focus === 'tasks' && i === ui.taskIdx && !adding,
     // the [loop] tag only adds information in the virtual views
     showTag: loop.id === null,
+    // highlight next actions (the side panels don't)
+    marks: true,
   }));
-  if (adding) rows.push(newTaskRow(loop.kind));
+  if (adding) rows.push(newTaskRow());
   if (!rows.length) {
-    const elsewhere = openTasks(loop.id).length;
-    rows.push(
-      loop.kind === 'waiting' ? `<li class="empty">Nothing waiting.</li>`
-      : loop.kind === 'important' ? `<li class="empty">Nothing important. Press i on a task to mark it.</li>`
-      : elsewhere ? `<li class="empty wait">Only waiting tasks here — see the right pane.</li>`
-      : loop.id === null ? `<li class="empty">No tasks. Press a to add one.</li>`
-      : `<li class="empty stale">No next action. Press l then a to add one.</li>`);
+    rows.push(loop.id === null
+      ? `<li class="empty">No tasks. Press a to add one.</li>`
+      : `<li class="empty stale">No next action. Press a to add one.</li>`);
   }
   document.getElementById('tasks').innerHTML = rows.join('');
 
-  const todo = currentTasks().filter(t => !t.done).length;
   document.getElementById('tasksTitle').textContent = loop.title;
-  document.getElementById('tasksMeta').textContent =
-    loop.kind === 'waiting' ? `${todo} waiting`
-    : loop.kind === 'important' ? `${todo} important`
-    : `${todo} to do`;
+  document.getElementById('tasksMeta').textContent = `${ts.filter(t => !t.done).length} open`;
 }
 
 // read-only lists in the right column
@@ -447,7 +482,7 @@ function renderChrome() {
     ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>@i</kbd> important  <kbd>14:30</kbd> timed'
     : ui.focus === 'loops'
       ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>a</kbd> new loop  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>u</kbd> undo'
-      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>a</kbd> new  <kbd>space</kbd> done  <kbd>w</kbd> ${loop.kind === 'waiting' ? 'unblock' : 'waiting'}  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>u</kbd> undo`;
+      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>a</kbd> new  <kbd>space</kbd> done  <kbd>w</kbd> waiting  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>u</kbd> undo`;
   document.getElementById('status').innerHTML = `
     <span class="mode">${ui.editing ? 'INSERT' : ui.focus.toUpperCase()}</span>
     ${cut ? `<span class="clip">cut: ${esc(displayTitle(cut))}</span>` : ''}
@@ -467,10 +502,7 @@ function commitEdit(value) {
     mutate(() => state.loops.push({ id: uid(), title: value, createdAt: Date.now() }));
     ui.loopIdx = VIRTUAL.length + state.loops.length - 1;
   } else if (ed.kind === 'new-task') {
-    // creating inside a virtual view adds its marker
-    const tok = { waiting: '@w', important: '@i' }[currentLoop().kind];
-    const title = tok && !hasToken(value, tok) ? `${value} ${tok}` : value;
-    const task = { id: uid(), title, loopId: currentLoop().id, done: false, createdAt: Date.now() };
+    const task = { id: uid(), title: value, loopId: currentLoop().id, done: false, createdAt: Date.now() };
     mutate(() => state.tasks.push(task));
     ui.focus = 'tasks';
     ui.taskIdx = currentTasks().indexOf(task);
@@ -524,7 +556,7 @@ function focusPane(delta) {
 
 function swap(arr, i, j) { [arr[i], arr[j]] = [arr[j], arr[i]]; }
 
-// J/K: move the selected item down/up; the virtual loops stay pinned on top
+// J/K: move the selected item down/up; the virtual views stay pinned on top
 function shift(delta) {
   if (ui.focus === 'loops') {
     const i = ui.loopIdx - VIRTUAL.length, j = i + delta;
@@ -661,6 +693,8 @@ function seed() {
     ['Standup 09:30', null],
     ['Design review 14:00', web.id],
     ['Book dentist appointment', null],
+    ['Try a dark mode variant?', web.id],
+    ['Add a glossary to the guide', guide.id],
   ].forEach(([title, loopId]) => state.tasks.push({ id: uid(), title, loopId, done: false, createdAt: Date.now() }));
   persist();
 }
