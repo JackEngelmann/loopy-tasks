@@ -91,9 +91,44 @@
     min-height: 0;
   }
 
-  /* right column: waiting on top, timed (read-only) below */
+  /* right column: important, waiting, timed (read-only) */
   .side { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
   .side .pane { flex: 1 1 0; }
+
+  /* narrow windows (e.g. half a screen): the right column folds into a summary line,
+     and s shows it as an overlay */
+  #summary {
+    display: none;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 0 14px 6px;
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+  #summary .wait { color: var(--wait); }
+  #summary .time { color: var(--tag); }
+  #summary .due { color: var(--stale); }
+  #summary .hint { color: var(--text-3); margin-left: auto; }
+  @media (max-width: 1100px) {
+    main { grid-template-columns: minmax(220px, 38%) 1fr; }
+    #summary { display: flex; }
+    .side { display: none; }
+    body.side-open .side {
+      display: flex;
+      position: fixed;
+      top: 64px;
+      right: 8px;
+      bottom: 36px;
+      width: min(380px, calc(100vw - 32px));
+      padding: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+      z-index: 5;
+    }
+  }
 
   .pane {
     background: var(--pane);
@@ -261,6 +296,7 @@
   <button class="file-btn" id="importBtn" title="Replace all data with a JSON export">import</button>
   <input type="file" id="importFile" accept=".json,application/json" hidden>
 </header>
+<div id="summary" title="Show important, waiting and timed (s)"></div>
 
 <main>
   <section class="pane" id="loopsPane">
@@ -326,6 +362,7 @@ const ui = {
   templates: false,   // template mode: the panes edit templates instead of loops
   otherCursor: null,  // cursor of the mode you're not in, restored on T
   picker: null,       // { idx } while choosing a template with t
+  sideOpen: false,    // right column shown as an overlay on narrow windows (\)
 };
 
 function load() {
@@ -425,6 +462,7 @@ function render() {
   renderSide('important', importantTasks(), 'Nothing important. Press i on a task.');
   renderSide('waiting', waitingTasks(), 'Nothing waiting.');
   renderSide('timed', timedTasks(), 'Nothing timed. Put a time like 14:30 in a task.');
+  renderSummary();
   renderChrome();
 
   document.querySelectorAll('.row.sel').forEach(el => el.scrollIntoView({ block: 'nearest' }));
@@ -563,6 +601,35 @@ function renderSide(id, ts, emptyMsg) {
   document.getElementById(id).innerHTML = rows.join('');
   document.getElementById(id + 'Meta').textContent = sideMeta(ts, loop);
 }
+
+const narrow = window.matchMedia('(max-width: 1100px)');
+
+// one-line stand-in for the right column on narrow windows; s shows the full column
+function renderSummary() {
+  const now = nowMinutes();
+  const imp = importantTasks().length;
+  const wait = waitingTasks().length;
+  const timed = timedTasks();
+  const due = timed.filter(t => timeOf(t) <= now).length;
+  const upcoming = timed.find(t => timeOf(t) > now);
+  const parts = [
+    imp && `<span><span class="star">★</span> ${imp} important</span>`,
+    wait && `<span class="wait">◷ ${wait} waiting</span>`,
+    due && `<span class="due">${due} due</span>`,
+    upcoming && `<span>next <span class="time">${fmtTime(timeOf(upcoming))}</span> ${esc(displayTitle(upcoming))}</span>`,
+  ].filter(Boolean);
+  document.getElementById('summary').innerHTML = (parts.length ? parts.join('') : '<span>nothing important, waiting or timed</span>')
+    + `<span class="hint">s ${ui.sideOpen ? 'hide' : 'details'}</span>`;
+  document.body.classList.toggle('side-open', ui.sideOpen);
+}
+
+function toggleSide() {
+  ui.sideOpen = narrow.matches && !ui.sideOpen;
+}
+
+document.getElementById('summary').addEventListener('click', () => { toggleSide(); render(); });
+// widening the window brings the column back in place, so drop the overlay state
+narrow.addEventListener('change', () => { ui.sideOpen = false; render(); });
 
 function sideMeta(ts, loop) {
   if (!ts.length) return '';
@@ -971,7 +1038,8 @@ const keymap = {
   N: () => searchNext(-1),
   t: openPicker,
   T: toggleTemplates,
-  Escape: () => { ui.cutId = null; ui.search = null; },
+  s: toggleSide,
+  Escape: () => { ui.cutId = null; ui.search = null; ui.sideOpen = false; },
 };
 
 document.addEventListener('keydown', e => {
