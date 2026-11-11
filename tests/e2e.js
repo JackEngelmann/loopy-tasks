@@ -176,6 +176,16 @@ test('x / p move a task to another loop', async () => {
   eq(text('#clip'), '');
 });
 
+test('a waiting task with a time shows under Waiting, not Timed', async () => {
+  await fresh();
+  keys('j', 'l', 'o');
+  typeInline('Check agent 15:00 @w');
+  ok($$('#waiting .row').some(r => r.textContent.includes('Check agent')));
+  ok(!$$('#timed .row').some(r => r.textContent.includes('Check agent')));
+  keys('w');
+  ok($$('#timed .row').some(r => r.textContent.includes('Check agent')), 'back in Timed once not waiting');
+});
+
 test('+20m becomes a clock time', async () => {
   await fresh();
   keys('j', 'l', 'o');

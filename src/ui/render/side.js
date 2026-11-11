@@ -3,15 +3,19 @@
 
 import { state } from '../../model/store.js';
 import { importantTasks, waitingTasks, timedTasks } from '../../model/queries.js';
-import { timeOf, fmtTime, nowMinutes, displayTitle } from '../../model/markers.js';
+import { isWaiting, timeOf, fmtTime, nowMinutes, displayTitle } from '../../model/markers.js';
 import { ui, currentLoop } from '../view.js';
 import { taskRow } from './rows.js';
 import { esc } from '../../util.js';
 
+// a waiting task with a time shows under Waiting only (its time is a check-back;
+// it still reminds you)
+const timedShown = () => timedTasks(state.tasks).filter(t => !isWaiting(t));
+
 export function renderSide() {
   renderPanel('important', importantTasks(state.tasks), 'Nothing important. Press i on a task.');
   renderPanel('waiting', waitingTasks(state.tasks), 'Nothing waiting.');
-  renderPanel('timed', timedTasks(state.tasks), 'Nothing timed. Put a time like 14:30 in a task.');
+  renderPanel('timed', timedShown(), 'Nothing timed. Put a time like 14:30 in a task.');
   renderSummary();
 }
 
@@ -36,7 +40,7 @@ function renderSummary() {
   const now = nowMinutes();
   const imp = importantTasks(state.tasks).length;
   const wait = waitingTasks(state.tasks).length;
-  const timed = timedTasks(state.tasks);
+  const timed = timedShown();
   const due = timed.filter(t => timeOf(t) <= now).length;
   const upcoming = timed.find(t => timeOf(t) > now);
   const parts = [
