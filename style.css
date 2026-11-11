@@ -85,12 +85,12 @@ main {
   min-height: 0;
 }
 
-/* right column: important, waiting, timed (read-only) */
+/* right column: Today, what needs you sorted by urgency (read-only) */
 .side { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
 .side .pane { flex: 1 1 0; }
 
-/* narrow windows (e.g. half a screen): the right column folds into a summary line,
-   and s shows it as an overlay */
+/* narrow windows (e.g. half a screen): the right column folds into a line: a yellow
+   strip when something is due now or soon, a quiet line otherwise; s shows the panel */
 #summary {
   display: none;
   gap: 14px;
@@ -102,8 +102,27 @@ main {
 }
 #summary .wait { color: var(--wait); }
 #summary .time { color: var(--tag); }
-#summary .due { color: var(--stale); }
 #summary .hint { color: var(--text-3); margin-left: auto; }
+#summary.urgent {
+  margin: 0 8px 8px;
+  padding: 5px 10px;
+  gap: 4px 14px;
+  border-radius: 6px;
+  background: var(--stale-bg);
+  border: 1px solid color-mix(in srgb, var(--stale) 50%, transparent);
+  color: var(--stale);
+}
+#summary.urgent .soon, #summary.urgent .soon .time { color: var(--tag); }
+#summary.urgent .now .time { color: var(--stale); font-weight: 600; }
+
+.badge {
+  background: var(--stale);
+  color: var(--sel-text);
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
 @media (max-width: 1100px) {
   main { grid-template-columns: var(--loops-w, minmax(220px, 38%)) 1fr; }
   #sideSplitter { display: none; }
@@ -147,8 +166,6 @@ main {
   justify-content: space-between;
   gap: 8px;
 }
-#waitingPane .pane-head span:first-child { color: var(--wait); }
-#importantPane .pane-head span:first-child { color: var(--imp); }
 .star { color: var(--imp); }
 
 ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
@@ -252,18 +269,57 @@ body.resizing { cursor: col-resize; user-select: none; }
 .tag { color: var(--tag); font-size: 12px; }
 .tag.none { color: var(--text-3); }
 
-/* waiting pane: items outside the selected loop fade back */
-#waiting .check { color: var(--wait); }
-#waiting .row.other, #timed .row.other { opacity: .45; }
+/* Today panel: groups by urgency */
+.tier {
+  padding: 8px 10px 2px;
+  font-size: 11px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+}
+.tier.now { color: var(--stale); }
+.tier.soon { color: var(--tag); }
+.tier.important { color: var(--imp); }
+.tier.later, .tier.plan { color: var(--text-3); }
+.row.quiet { opacity: .6; }
+.compact { padding: 2px 10px 2px 28px; font-size: 12px; color: var(--text-3); }
+.plan-line { padding: 2px 10px 2px 28px; font-size: 12px; color: var(--stale); }
+.calm {
+  margin: 10px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.calm b { color: var(--text); font-weight: 600; }
+.when { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+/* Today rows: the loop and how late / when on a second line */
+.row.two-line { flex-wrap: wrap; row-gap: 0; }
+.row-below {
+  flex-basis: 100%;
+  padding-left: calc(1ch + 8px);
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row.due .row-below { color: var(--stale); }
+.row.soon-row .row-below { color: var(--tag); }
+#today .check.wait { color: var(--wait); }
 
-/* timed pane */
-#timedPane .pane-head span:first-child { color: var(--tag); }
 .time { color: var(--tag); font-variant-numeric: tabular-nums; }
-.row.due .time { color: var(--stale); font-weight: 600; }
+/* past and not done: needs attention, wherever it's shown */
+.row.due { background: var(--stale-bg); }
+.row.due .time, .row.due .name, .row.due .when, .row.due .check { color: var(--stale); }
+.row.due .time, .row.due .name { font-weight: 600; }
 
 /* the next action of a loop stands out; the rest of its tasks recede */
 .row.next .check { color: var(--sel); }
 .row.backlog .name { color: var(--text-2); }
+.row.backlog.due .name { color: var(--stale); }
 
 .empty { padding: 10px; color: var(--text-3); }
 .empty.stale { color: var(--stale); }

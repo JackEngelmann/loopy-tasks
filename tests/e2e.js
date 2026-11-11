@@ -55,6 +55,17 @@ function modalWith(value, cursor = 0) {
   note().setSelectionRange(cursor, cursor + 1);
 }
 
+// the rows of one group in the Today panel, as text
+function group(name) {
+  const rows = [];
+  let inside = false;
+  for (const li of $$('#today li')) {
+    if (li.classList.contains('tier')) inside = li.classList.contains(name);
+    else if (inside) rows.push(li.textContent.replace(/\s+/g, ' '));
+  }
+  return rows.join(' | ');
+}
+
 const hhmm = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 
@@ -130,8 +141,8 @@ test('w marks waiting with a timestamp and a note hint, w again clears it', asyn
   keys('j', 'l', 'j', 'w');
   ok(task('Collect feedback').title.endsWith('@w'));
   ok(task('Collect feedback').waitingSince > 0, 'waitingSince set');
-  eq(text('#flash'), 'm to note where you left off');
-  ok($$('#waiting .row').some(r => r.textContent.includes('Collect feedback')));
+  eq(text('#flash'), '+20m in the title (r) sets a check-back · m to note where you left off');
+  ok(text('#today').includes('Collect feedback'), 'listed under Later');
   keys('w');
   eq(task('Collect feedback').title, 'Collect feedback on current site');
   eq(task('Collect feedback').waitingSince, undefined);
@@ -140,7 +151,7 @@ test('w marks waiting with a timestamp and a note hint, w again clears it', asyn
 test('i marks important and shows it on the right', async () => {
   await fresh();
   keys('j', 'l', 'j', 'i');
-  ok($$('#important .row').some(r => r.textContent.includes('Collect feedback')));
+  ok(group('important').includes('Collect feedback'));
 });
 
 test('space marks done and hides the task; u brings it back', async () => {
@@ -177,14 +188,32 @@ test('x / p move a task to another loop', async () => {
   eq(text('#clip'), '');
 });
 
-test('a waiting task with a time shows under Waiting, not Timed', async () => {
+test('Today: a check-back moves to Soon, an overdue task to Now with a badge', async () => {
   await fresh();
   keys('j', 'l', 'o');
-  typeInline('Check agent 15:00 @w');
-  ok($$('#waiting .row').some(r => r.textContent.includes('Check agent')));
-  ok(!$$('#timed .row').some(r => r.textContent.includes('Check agent')));
-  keys('w');
-  ok($$('#timed .row').some(r => r.textContent.includes('Check agent')), 'back in Timed once not waiting');
+  typeInline('Check agent @w +10m');
+  ok(group('soon').includes('Check agent'), group('soon'));
+  ok(group('soon').includes('Website redesign · check back in'), group('soon'));   // "in 10m", less just before midnight
+  eq(text('#today').split('Check agent').length, 2, 'listed once');
+  keys('o');
+  typeInline(`Overdue thing ${hhmm(Math.max(nowMin() - 5, 0))}`);
+  ok(group('now').includes('Overdue thing'), group('now'));
+  ok(group('now').includes('5m late'), group('now'));
+  ok(!$('#nowBadge').hidden);
+  ok(doc.title.startsWith('('), 'tab title has the count');
+  ok($$('#tasks .row.due').some(r => r.textContent.includes('Overdue thing')), 'overdue in the middle pane too');
+  keys(' ');
+  ok(!group('now').includes('Overdue thing'));
+});
+
+test('Today: calm when nothing is due', async () => {
+  // an empty store would get the seed data, which has overdue tasks
+  await fresh({ stored: { version: 2, loops: [{ id: 'L', title: 'Calm loop' }], tasks: [], templates: { loops: [], tasks: [] } } });
+  keys('j', 'l', 'o');
+  typeInline('Something @i');
+  ok(text('#today').startsWith('Nothing needs you right now'), text('#today'));
+  ok($('#nowBadge').hidden, 'badge hidden');
+  ok(group('important').includes('Something'), group('important'));
 });
 
 test('+20m becomes a clock time', async () => {

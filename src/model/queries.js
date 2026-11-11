@@ -21,11 +21,38 @@ export function loopStatus(d, l) {
   return openTasks(d, l.id).some(isWaiting) ? 'waiting' : 'stale';
 }
 
-// the right column: open tasks wherever they live
-export const waitingTasks = tasks => tasks.filter(t => !t.done && isWaiting(t));
-export const importantTasks = tasks => tasks.filter(t => !t.done && isImportant(t));
 export const timedTasks = tasks => tasks.filter(t => !t.done && timeOf(t) !== null)
   .sort((a, b) => timeOf(a) - timeOf(b));
+
+// ── Attention ──
+// What needs you, most urgent first, for the Today panel. Each open task shows once,
+// in its most urgent group:
+//   now        its time has come (overdue tasks and check-backs of waiting ones)
+//   soon       its time is within SOON minutes
+//   important  marked @i
+//   later      timed later today, or waiting without a check-back time (longest first)
+// plus `plan`: loops without a next action. Times have no date: everything is today.
+
+export const SOON = 30;
+
+export function attention(d, now) {
+  const open = d.tasks.filter(t => !t.done);
+  const timed = timedTasks(open);
+  const groups = {
+    now: timed.filter(t => timeOf(t) <= now),
+    soon: timed.filter(t => timeOf(t) > now && timeOf(t) <= now + SOON),
+  };
+  const taken = new Set([...groups.now, ...groups.soon]);
+  groups.important = open.filter(t => isImportant(t) && !taken.has(t));
+  groups.important.forEach(t => taken.add(t));
+  groups.later = [
+    ...timed.filter(t => !taken.has(t)),
+    ...open.filter(t => isWaiting(t) && timeOf(t) === null && !taken.has(t))
+      .sort((a, b) => (a.waitingSince || 0) - (b.waitingSince || 0)),
+  ];
+  groups.plan = d.loops.filter(l => loopStatus(d, l) === 'stale');
+  return groups;
+}
 
 // ── Reminders ──
 

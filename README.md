@@ -18,13 +18,13 @@ and open <http://localhost:8000>. Reminders (system notifications for timed task
 
 - **Left:** `All`, then your loops. A loop without a next action is yellow; one where everything is waiting is teal. The second line is the loop's next action (its first open, non-waiting task).
 - **Middle:** the selected loop's note and open tasks.
-- **Right (read-only):** Important, Waiting and Timed tasks across all loops. On narrow windows this folds into a summary line; `s` shows it as an overlay.
+- **Right (read-only): Today**, what needs you across all loops, most urgent first: **Now** (its time has come, including check-backs of waiting tasks), **Soon** (within 30 min), **Important**, **Later**, and **Plan** (loops without a next action). When nothing is due it says so. The header badge and the tab title count what's in Now. On narrow windows this folds into a line above the panes: a yellow strip while something is due now or soon, a quiet line otherwise; `s` shows the panel as an overlay.
 
 ## Markers in task text
 
 | Marker          | Meaning                                                  |
 |-----------------|----------------------------------------------------------|
-| `@w`            | waiting (shows how long it has been waiting)              |
+| `@w`            | waiting (shows how long); add a time for when to check back |
 | `@i`            | important                                                 |
 | `14:30`         | timed: listed in Timed, reminded at that time             |
 | `+20m` `+1h30`  | becomes a clock time when saved                           |
@@ -61,7 +61,7 @@ src/
   util.js
   model/               data, no DOM
     markers.js         @w / @i / times / +20m in titles
-    queries.js         next actions, loop status, right column lists, due reminders
+    queries.js         next actions, loop status, what needs you today, due reminders
     store.js           state, localStorage, schema version + migrations, undo
     import.js          reading an export file
   ui/

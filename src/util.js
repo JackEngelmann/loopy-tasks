@@ -6,6 +6,12 @@ export function esc(s) {
 
 export function swap(arr, i, j) { [arr[i], arr[j]] = [arr[j], arr[i]]; }
 
+// minutes as "40m", "1h50", "3h"
+export function duration(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h}h${m ? String(m).padStart(2, '0') : ''}` : `${m}m`;
+}
+
 // "3h" since a moment (note written, task started waiting)
 export function age(ms, now = Date.now()) {
   const min = Math.floor((now - ms) / 60_000);

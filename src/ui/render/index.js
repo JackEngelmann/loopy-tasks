@@ -8,7 +8,7 @@ import { renderModal } from '../../editor/modal.js';
 import { focusInlineEdit } from '../inline-edit.js';
 import { renderLoops } from './loops.js';
 import { renderTasks } from './tasks.js';
-import { renderSide } from './side.js';
+import { renderToday } from './today.js';
 import { renderChrome } from './chrome.js';
 
 export function render() {
@@ -18,7 +18,7 @@ export function render() {
   renderModal();
   renderLoops();
   renderTasks();
-  renderSide();
+  renderToday();
   renderChrome();
   renderSearchBox();
   renderNotifyBtn();

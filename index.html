@@ -10,12 +10,13 @@
 
 <header>
   <span id="crumb"></span>
+  <span class="badge" id="nowBadge" title="Things whose time has come" hidden></span>
   <button class="file-btn" id="notifyBtn"></button>
   <button class="file-btn" id="exportBtn" title="Download all loops and tasks as JSON">export</button>
   <button class="file-btn" id="importBtn" title="Replace all data with a JSON export">import</button>
   <input type="file" id="importFile" accept=".json,application/json" hidden>
 </header>
-<div id="summary" title="Show important, waiting and timed (s)"></div>
+<div id="summary" title="Show what needs you today (s)"></div>
 
 <main>
   <section class="pane" id="loopsPane">
@@ -29,17 +30,9 @@
     <div class="splitter" id="sideSplitter" title="Drag to resize · double-click to reset"></div>
   </section>
   <div class="side">
-    <section class="pane" id="importantPane">
-      <div class="pane-head"><span>Important</span><span id="importantMeta"></span></div>
-      <ul id="important"></ul>
-    </section>
-    <section class="pane" id="waitingPane">
-      <div class="pane-head"><span>Waiting</span><span id="waitingMeta"></span></div>
-      <ul id="waiting"></ul>
-    </section>
-    <section class="pane" id="timedPane">
-      <div class="pane-head"><span>Timed</span><span id="timedMeta"></span></div>
-      <ul id="timed"></ul>
+    <section class="pane" id="todayPane">
+      <div class="pane-head"><span>Today</span><span id="todayClock"></span></div>
+      <ul id="today"></ul>
     </section>
   </div>
 </main>

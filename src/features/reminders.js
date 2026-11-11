@@ -35,7 +35,8 @@ export function checkReminders() {
   });
   localStorage.setItem(NOTIFIED_KEY, JSON.stringify(notified));
   const last = due[due.length - 1];
-  document.title = `● ${fmtTime(timeOf(last))} ${displayTitle(last)}`;
+  marker = `● ${fmtTime(timeOf(last))} ${displayTitle(last)}`;
+  showTitle();
   ui.flash = { text: `⏰ ${due.map(t => `${fmtTime(timeOf(t))} ${displayTitle(t)}`).join(', ')}` };
   if (!isEditing()) render();
 }
@@ -49,10 +50,18 @@ function remind(t) {
   n.onclick = () => { window.focus(); n.close(); };
 }
 
-// the title marker stays until you come back to the page
-const clearTitle = () => { document.title = PAGE_TITLE; };
-window.addEventListener('focus', clearTitle);
-document.addEventListener('keydown', clearTitle);
+// tab title: "(2) loops" while things are due now; a reminder's marker
+// ("● 14:00 Design review") stays on top until you come back to the page
+let count = 0;
+let marker = '';
+const showTitle = () => { document.title = marker || (count ? `(${count}) ${PAGE_TITLE}` : PAGE_TITLE); };
+export function setTitleCount(n) {
+  count = n;
+  showTitle();
+}
+const clearMarker = () => { marker = ''; showTitle(); };
+window.addEventListener('focus', clearMarker);
+document.addEventListener('keydown', clearMarker);
 
 export function renderNotifyBtn() {
   const btn = document.getElementById('notifyBtn');

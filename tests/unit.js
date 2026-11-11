@@ -2,7 +2,7 @@
 
 import { test, eq, ok } from './harness.js';
 import { toggleToken, isWaiting, timeOf, resolveRelative, displayTitle } from '../src/model/markers.js';
-import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders } from '../src/model/queries.js';
+import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders, attention } from '../src/model/queries.js';
 import { migrate, stampWaiting, SCHEMA_VERSION } from '../src/model/store.js';
 import { parseImport } from '../src/model/import.js';
 import { initialVim, vimKey } from '../src/editor/vim.js';
@@ -57,6 +57,29 @@ test('queries: loop status', () => {
 
 test('queries: timed tasks are sorted by time', () => {
   eq(timedTasks([task('b 14:00'), task('a 9:00'), task('none')]).map(t => t.title), ['a 9:00', 'b 14:00']);
+});
+
+test('queries: attention groups by urgency, each task once', () => {
+  const d = {
+    loops: [{ id: 'L', title: 'empty loop' }],
+    tasks: [
+      task('overdue 9:00 @i'),
+      task('soon 10:20'),
+      task('check back 10:25 @w'),
+      task('important @i'),
+      task('later 14:00'),
+      task('waiting long @w', { waitingSince: 1 }),
+      task('waiting short @w', { waitingSince: 5 }),
+      task('done 9:30', { done: true }),
+    ],
+  };
+  const g = attention(d, 600);
+  const titles = list => list.map(t => t.title);
+  eq(titles(g.now), ['overdue 9:00 @i']);
+  eq(titles(g.soon), ['soon 10:20', 'check back 10:25 @w']);
+  eq(titles(g.important), ['important @i']);
+  eq(titles(g.later), ['later 14:00', 'waiting long @w', 'waiting short @w']);
+  eq(g.plan.map(l => l.title), ['empty loop']);
 });
 
 test('queries: due reminders', () => {

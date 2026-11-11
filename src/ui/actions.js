@@ -1,7 +1,7 @@
 // What the normal-mode keys do. Each changes ui and/or the data; the caller re-renders.
 
 import { mutate, undo as undoChange } from '../model/store.js';
-import { toggleToken, isWaiting } from '../model/markers.js';
+import { toggleToken, isWaiting, timeOf } from '../model/markers.js';
 import { ui, enter, narrow, PANES, db, virtuals, loopsList, currentLoop, currentTasks, selTask, selItem } from './view.js';
 import { swap } from '../util.js';
 
@@ -97,8 +97,13 @@ export function toggleMarker(tok) {
   const task = selTask();
   if (!task || task.done) return;
   mutate(() => { task.title = toggleToken(task.title, tok); });
-  // handing something off is a good moment to write down where you are
-  if (tok === '@w' && isWaiting(task)) ui.flash = { text: 'm to note where you left off' };
+  // handing something off is a good moment to write down where you are,
+  // and to say when to look again
+  if (tok === '@w' && isWaiting(task)) {
+    ui.flash = { text: timeOf(task) === null
+      ? '+20m in the title (r) sets a check-back · m to note where you left off'
+      : 'm to note where you left off' };
+  }
 }
 
 export function cut() {
