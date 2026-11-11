@@ -43,7 +43,7 @@ export const COMMANDS = [
   { modes: ['normal'], hint: 'w/i', label: 'waiting/important', show: inTemplates },
   { modes: ['normal'], hint: 'r', label: 'rename', keys: { r: act.rename } },
   { modes: ['normal'], keys: { R: () => openModal('title') } },
-  { modes: ['normal'], hint: 'm', label: 'note', keys: { m: () => openModal('note') } },
+  { modes: ['normal'], hint: 'm', label: 'note', keys: { m: () => openModal('note'), M: () => openModal('note') } },
   { modes: ['normal'], hint: 'x', label: 'cut', show: inTasks, keys: { x: act.cut } },
   { modes: ['normal'], hint: 'p', label: 'paste', show: notTemplates, keys: { p: act.paste } },
   { modes: ['normal'], hint: 'd', label: 'delete', keys: { d: act.remove } },

@@ -270,6 +270,13 @@ test('m opens the note editor in normal mode; :wq saves', async () => {
   ok(text('#tasks .note-block').includes('next: check'));
 });
 
+test('M opens the note editor too', async () => {
+  await fresh();
+  keys('j', 'M');
+  ok(modalOpen());
+  eq(text('#mode'), 'NOTE NORMAL');
+});
+
 test(':w keeps editing, :q refuses with changes, :q! discards', async () => {
   await fresh();
   keys('j', 'm');
