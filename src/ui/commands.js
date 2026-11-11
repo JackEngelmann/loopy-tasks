@@ -81,6 +81,7 @@ export const COMMANDS = [
   { modes: ['vim-normal'], hint: 'hjkl w/b/e 0/$ gg/G', label: 'move' },
   { modes: ['vim-normal'], hint: 'i/a/I/A/o/O', label: 'insert' },
   { modes: ['vim-normal'], hint: 'x dd D d/c+w/e/b/$/0/iw cc C', label: 'delete/change' },
+  { modes: ['vim-normal'], hint: 'yy y+w/e/b/$/0/iw p/P', label: 'yank, paste after/before' },
   { modes: ['vim-normal'], hint: ':wq/ZZ', label: 'save' },
   { modes: ['vim-normal'], hint: ':w', label: 'save, stay' },
   { modes: ['vim-normal'], hint: ':q!', label: 'discard' },

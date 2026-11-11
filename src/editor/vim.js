@@ -1,8 +1,9 @@
 // A few vim keys, as a pure function: vimKey(state, key) → next state.
-// state = { text, cursor, mode, pending, count, opCount, goal, cmd, msg }
+// state = { text, cursor, mode, pending, count, opCount, goal, cmd, msg, reg }
 //   mode     'normal' | 'insert'
-//   pending  keys typed so far of a multi-key command (g, Z, d, c, di, ci)
-//   count    digits typed before a command; opCount: the count before d/c (2d3w)
+//   pending  keys typed so far of a multi-key command (g, Z, d, c, y, di, ci, yi)
+//   count    digits typed before a command; opCount: the count before d/c/y (2d3w)
+//   reg      what d, c, x, y took, for p / P: { text, linewise } (whole lines from dd, yy, cc)
 //   goal     column j/k try to keep
 //   cmd      the ":" command being typed (null when none); msg: its result
 // The result also has
@@ -11,8 +12,8 @@
 //            'escape' (esc in normal mode with nothing pending) or null
 // No undo inside the editor.
 
-export const initialVim = text => ({
-  text, cursor: 0, mode: 'normal', pending: '', count: '', opCount: 1, goal: null, cmd: null, msg: '',
+export const initialVim = (text, reg = { text: '', linewise: false }) => ({
+  text, cursor: 0, mode: 'normal', pending: '', count: '', opCount: 1, goal: null, cmd: null, msg: '', reg,
 });
 
 export const lineStart = (v, p) => v.lastIndexOf('\n', p - 1) + 1;
@@ -119,14 +120,16 @@ function normalKey(s, key) {
   s.count = '';
   if (!'jk'.includes(cmd)) s.goal = null;
 
-  // d/c followed by a motion or iw
+  // d/c/y followed by a motion or iw
   const op = cmd[0];
-  if (cmd.length > 1 && 'dc'.includes(op) && cmd !== 'dd' && cmd !== 'cc') {
+  if (cmd.length > 1 && 'dcy'.includes(op) && !['dd', 'cc', 'yy'].includes(cmd)) {
     if (cmd.length === 2 && key === 'i') { s.pending = cmd; return; }
     const range = opRange(v, p, op, cmd.slice(1), n * s.opCount);
     s.opCount = 1;
     if (!range) return;
     const [from, to] = range;
+    take(s, v.slice(from, to), false);
+    if (op === 'y') { s.cursor = from; return; }
     return splice(s, from, to, '', from, op === 'c' ? 'insert' : 'normal');
   }
 
@@ -140,31 +143,66 @@ function normalKey(s, key) {
   switch (cmd) {
     case 'g': case 'Z': s.pending = cmd; return;
     case ':': s.cmd = ''; return;
-    case 'd': case 'c': s.pending = cmd; s.opCount = n; return;
+    case 'd': case 'c': case 'y': s.pending = cmd; s.opCount = n; return;
     case 'i': return toMode(s, 'insert', p);
     case 'a': return toMode(s, 'insert', Math.min(p + 1, le));
     case 'I': return toMode(s, 'insert', firstNonBlank(v, p));
     case 'A': return toMode(s, 'insert', le);
     case 'o': return splice(s, le, le, '\n', le + 1, 'insert');
     case 'O': return splice(s, ls, ls, '\n', ls, 'insert');
-    case 'x': return splice(s, p, Math.min(p + n, le), '', p);
-    case 'D': return splice(s, p, le, '', Math.max(ls, p - 1));
-    case 'dd': {
+    case 'x': take(s, v.slice(p, Math.min(p + n, le)), false); return splice(s, p, Math.min(p + n, le), '', p);
+    case 'D': take(s, v.slice(p, le), false); return splice(s, p, le, '', Math.max(ls, p - 1));
+    case 'dd': case 'yy': {
       // n lines from here, including their line break (2dd and d2d both work)
       const lines = n * s.opCount;
       s.opCount = 1;
       let end = le;
       for (let i = 1; i < lines && end < v.length; i++) end = lineEnd(v, end + 1);
+      take(s, v.slice(ls, end) + '\n', true);
+      if (cmd === 'yy') return;
       const from = end < v.length ? ls : Math.max(0, ls - 1);
       return splice(s, from, Math.min(v.length, end + 1), '', from === ls ? ls : lineStart(v, from - 1));
     }
-    case 'C': return splice(s, p, le, '', p, 'insert');
-    case 'cc': return splice(s, ls, le, '', ls, 'insert');
+    case 'C': take(s, v.slice(p, le), false); return splice(s, p, le, '', p, 'insert');
+    case 'cc': take(s, v.slice(ls, le) + '\n', true); return splice(s, ls, le, '', ls, 'insert');
+    case 'p': case 'P': return paste(s, cmd === 'P', n);
     case 'ZZ': s.effect = 'save'; return;
   }
 }
 
-// the text a d/c command acts on, as [from, to)
+// remember what a delete, change or yank took (empty takes leave the register alone)
+function take(s, text, linewise) {
+  if (text && text !== '\n') s.reg = { text, linewise };
+}
+
+// p pastes after the cursor (whole lines: below the current one), P before (above);
+// the cursor ends on the last pasted character, or the start of the first pasted line
+function paste(s, before, n) {
+  const { text, linewise } = s.reg;
+  if (!text) return;
+  const v = s.text, p = s.cursor;
+  const ins = text.repeat(n);
+  if (!linewise) {
+    const at = before || p >= lineEnd(v, p) ? p : p + 1;   // on an empty line: at the cursor
+    return splice(s, at, at, ins, at + ins.length - 1);
+  }
+  const ls = lineStart(v, p), le = lineEnd(v, p);
+  let at;
+  if (before) {
+    splice(s, ls, ls, ins, ls);
+    at = ls;
+  } else if (le < v.length) {
+    splice(s, le + 1, le + 1, ins, le + 1);
+    at = le + 1;
+  } else {
+    // below the last line: the line break goes in front instead of after
+    splice(s, le, le, '\n' + ins.slice(0, -1), le + 1);
+    at = le + 1;
+  }
+  s.cursor = firstNonBlank(s.text, at);
+}
+
+// the text a d/c/y command acts on, as [from, to)
 function opRange(v, p, op, target, n) {
   const ls = lineStart(v, p), le = lineEnd(v, p);
   const repeat = (fn, q = p) => { for (let i = 0; i < n; i++) q = fn(v, q); return q; };

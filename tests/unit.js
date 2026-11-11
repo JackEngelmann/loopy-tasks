@@ -157,6 +157,18 @@ test('vim: operators', () => {
   eq(show(vim('|a\nb\nc', ['2', 'd', 'd'])), '|c');
 });
 
+test('vim: deletes and yanks go to the register; p / P paste', () => {
+  eq(show(vim('|one\ntwo\nthree', ['d', 'd', 'p'])), 'two\n|one\nthree', 'dd p swaps lines');
+  eq(show(vim('one\n|two', ['d', 'd', 'P'])), '|two\none', 'last line, P above');
+  eq(show(vim('|one\ntwo', ['y', 'y', 'j', 'p'])), 'one\ntwo\n|one', 'yy p below the last line');
+  eq(show(vim('|one\ntwo', ['y', 'y', '2', 'P'])), '|one\none\none\ntwo', 'counts');
+  eq(show(vim('|abc', ['x', 'p'])), 'b|ac', 'x p swaps characters');
+  eq(show(vim('|one two', ['d', 'w', '$', 'p'])), 'twoone| ', 'dw takes the space too; cursor on the last pasted character');
+  eq(show(vim('one |two', ['y', 'i', 'w', '0', 'P'])), 'tw|oone two', 'yiw P');
+  const s = vim('|keep', ['y', 'y']);
+  eq([s.text, s.reg], ['keep', { text: 'keep\n', linewise: true }], 'yank leaves the text');
+});
+
 test('vim: insert mode passes typing through, esc goes back', () => {
   const s = vim('ab|c', ['i']);
   eq(vimKey(s, 'x').handled, false);

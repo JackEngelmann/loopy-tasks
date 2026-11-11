@@ -18,7 +18,7 @@ export function openModal(kind) {
   if (!item || !item.id) return;
   enter('modal', { editing: { kind, id: item.id } });
   input.value = kind === 'note' ? item.note || '' : item.title;
-  vim = initialVim(input.value);
+  vim = initialVim(input.value, vim.reg);   // the register survives closing the editor
   setCursor(0);
   document.getElementById('noteHead').textContent =
     `${kind === 'note' ? 'Note' : 'Rename'} · ${loopById(item.id) ? item.title : displayTitle(item)}`;

@@ -147,6 +147,10 @@ test('w marks waiting with a timestamp and a note hint, w again clears it', asyn
   keys('w');
   eq(task('Collect feedback').title, 'Collect feedback on current site');
   eq(task('Collect feedback').waitingSince, undefined);
+  keys('r');
+  typeInline('Collect feedback 15:00 @w');
+  keys('w');
+  eq(task('Collect feedback').title, 'Collect feedback', 'w on a waiting task drops its check-back time too');
 });
 
 test('i marks important and shows it on the right', async () => {
@@ -434,6 +438,18 @@ test('vim edits', async () => {
     vim(...ks);
     eq(withCursor(), expected, `${JSON.stringify(value)} + ${ks.join('')}`);
   }
+});
+
+test('dd then p moves a line; the register survives reopening the editor', async () => {
+  await fresh();
+  keys('j', 'j', 'm');
+  vim('i'); insert('first\nsecond'); vim('Escape', 'g', 'g', 'd', 'd', 'p');
+  eq(modalText(), 'second\nfirst');
+  vim(':', 'w', 'q', 'Enter');
+  keys('j', 'm');
+  vim('p');
+  eq(modalText(), '\nfirst', 'pasted into the next note');
+  vim(':', 'q', '!', 'Enter');
 });
 
 test('R renames in the modal; enter does not add a line', async () => {

@@ -15,6 +15,7 @@ export function timeOf(t) {
   const m = t.title.match(TIME_RE);
   return m ? +m[2] * 60 + +m[3] : null;
 }
+export const stripTime = title => title.replace(new RegExp(TIME_RE.source, 'g'), '$1').replace(/\s+/g, ' ').trim();
 export const fmtTime = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 export const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 
@@ -26,8 +27,7 @@ export function resolveRelative(title, now = nowMinutes()) {
   if (!m) return title;
   const mins = m[4] !== undefined ? +m[4] : +m[2] * 60 + +(m[3] || 0);
   const at = fmtTime(Math.min(now + mins, 23 * 60 + 59));
-  return title.replace(new RegExp(TIME_RE.source, 'g'), '$1').replace(REL_RE, `$1${at}`)
-    .replace(/\s+/g, ' ').trim();
+  return stripTime(title).replace(REL_RE, `$1${at}`);
 }
 
 // the title as shown: markers and the time are displayed separately
