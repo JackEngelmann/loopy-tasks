@@ -1,9 +1,9 @@
-// Left pane: All, then the loops (or the templates in template mode).
+// Left pane: All and Standalone, then the loops (or the templates in template mode).
 
 import { state } from '../../model/store.js';
 import { openTasks, doable, nextOf, loopStatus } from '../../model/queries.js';
 import { isWaiting, isImportant, displayTitle } from '../../model/markers.js';
-import { ui, db, virtuals, VIRTUAL } from '../view.js';
+import { ui, db, virtuals, tasksOf, VIRTUAL } from '../view.js';
 import { highlight } from '../../features/search.js';
 import { editInput } from '../inline-edit.js';
 import { noteLine } from './rows.js';
@@ -15,10 +15,17 @@ export function renderLoops() {
   const sel = i => i === ui.loopIdx && !(ed && ed.kind === 'new-loop');
 
   const rows = virtuals().map((l, i) => {
-    const n = openTasks(d, null).length;
-    const cls = ['row', 'virtual', `virtual-${l.kind}`, sel(i) && 'sel', i === VIRTUAL.length - 1 && 'gap-after']
-      .filter(Boolean).join(' ');
-    return `<li class="${cls}" data-i="${i}"><span class="name">${highlight(l.title, 'loops')}</span><span class="count">${n}</span></li>`;
+    const ts = tasksOf(l);
+    const cls = ['row', 'virtual', `virtual-${l.kind}`, l.kind === 'standalone' && 'loop', sel(i) && 'sel',
+      i === VIRTUAL.length - 1 && 'gap-after'].filter(Boolean).join(' ');
+    const name = `<span class="name">${highlight(l.title, 'loops')}</span><span class="count">${ts.length}</span>`;
+    if (l.kind !== 'standalone') return `<li class="${cls}" data-i="${i}">${name}</li>`;
+    // like a loop: the first standalone task and how many follow
+    const first = ts[0];
+    return `<li class="${cls}" data-i="${i}">
+      <div class="loop-line">${name}</div>
+      <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : 'No standalone tasks'}</span>${ts.length > 1 ? `<span class="counts">+${ts.length - 1}</span>` : ''}</div>
+    </li>`;
   });
 
   d.loops.forEach((l, j) => {

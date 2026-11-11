@@ -191,6 +191,7 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 /* counts wrap below the title rather than truncating it */
 .loop-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; min-width: 0; }
 .loop-line .name { flex: 0 1 auto; font-weight: 600; }
+.loop-line .count { margin-left: auto; }
 .counts { margin-left: auto; color: var(--text-3); font-size: 11px; }
 .loop-next {
   display: flex;

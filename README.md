@@ -16,7 +16,7 @@ and open <http://localhost:8000>. Reminders (system notifications for timed task
 
 ## Layout
 
-- **Left:** `All`, then your loops. A loop without a next action is yellow; one where everything is waiting is teal. The second line is the loop's next action (its first open, non-waiting task).
+- **Left:** `All`, `Standalone` (tasks without a loop), then your loops. A loop without a next action is yellow; one where everything is waiting is teal. The second line is the loop's next action (its first open, non-waiting task).
 - **Middle:** the selected loop's note and open tasks.
 - **Right (read-only): Today**, what needs you across all loops, most urgent first: **Now** (its time has come, including check-backs of waiting tasks), **Soon** (within 30 min), **Important**, **Later**, and **Plan** (loops without a next action). When nothing is due it says so. The header badge and the tab title count what's in Now. On narrow windows this folds into a line above the panes: a yellow strip while something is due now or soon, a quiet line otherwise; `s` shows the panel as an overlay.
 

@@ -1,7 +1,7 @@
 // UI state: what's selected, which mode the keyboard is in, and the lists as the panes show them.
 
 import { state } from '../model/store.js';
-import { openTasks } from '../model/queries.js';
+import { openTasks, standaloneTasks } from '../model/queries.js';
 
 // navigable panes; the right column is informational only
 export const PANES = ['loops', 'tasks'];
@@ -41,10 +41,11 @@ export function leave() {
   ui.picker = null;
 }
 
-// the virtual "All" loop has no id, so tasks created there get no loop;
-// it sits above the real loops
+// virtual loops above the real ones: "All" shows every task, "Standalone" the tasks
+// without a loop. Neither has an id, so tasks created or pasted there get no loop.
 export const ALL = { id: null, title: 'All', kind: 'all' };
-export const VIRTUAL = [ALL];
+export const STANDALONE = { id: null, title: 'Standalone', kind: 'standalone' };
+export const VIRTUAL = [ALL, STANDALONE];
 // stand-in when template mode has no templates yet
 export const NONE = { id: null, title: 'No templates', kind: 'none' };
 
@@ -59,8 +60,10 @@ export const currentLoop = () => loopsList()[ui.loopIdx] || NONE;
 export const loopById = id => state.loops.find(l => l.id === id) || state.templates.loops.find(l => l.id === id);
 export const itemById = id => loopById(id) || db().tasks.find(t => t.id === id);
 
-// middle pane: open tasks in order (waiting ones included); done tasks are hidden
-export const currentTasks = () => openTasks(db(), currentLoop().id);
+// open tasks of a loop, real or virtual, in order (waiting ones included)
+export const tasksOf = loop => loop.kind === 'standalone' ? standaloneTasks(db()) : openTasks(db(), loop.id);
+// middle pane; done tasks are hidden
+export const currentTasks = () => tasksOf(currentLoop());
 export const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] : null;
 // the loop or task the cursor is on
 export const selItem = () => ui.focus === 'loops' ? currentLoop() : selTask();

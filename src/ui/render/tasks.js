@@ -12,7 +12,7 @@ export function renderTasks() {
   const rows = ts.map((t, i) => taskRow(t, i, {
     selected: ui.focus === 'tasks' && i === ui.taskIdx && !adding,
     // the [loop] tag only adds information in the virtual views
-    showTag: loop.id === null,
+    showTag: loop.kind === 'all',
     // highlight next actions (not in templates, and not in the side panels)
     marks: !ui.templates,
     notes: true,
@@ -22,6 +22,7 @@ export function renderTasks() {
     rows.push(
       loop.kind === 'none' ? `<li class="empty">Create a template in the left pane first.</li>`
       : ui.templates ? `<li class="empty">Empty template. Press o to add a task.</li>`
+      : loop.kind === 'standalone' ? `<li class="empty">No standalone tasks. Press o to add one.</li>`
       : loop.id === null ? `<li class="empty">No tasks. Press o to add one.</li>`
       : `<li class="empty stale">No next action. Press o to add one.</li>`);
   }

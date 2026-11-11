@@ -5,6 +5,8 @@ import { isWaiting, isImportant, timeOf } from './markers.js';
 
 // id null means every loop (and tasks without one)
 export const openTasks = (d, id) => d.tasks.filter(t => !t.done && (id === null || t.loopId === id));
+// tasks that aren't part of a loop
+export const standaloneTasks = d => d.tasks.filter(t => !t.done && t.loopId === null);
 
 // a loop's next action is its first open, non-waiting task; reorder with J/K to change it.
 // tasks without a loop stand on their own, so each of them counts as a next action.

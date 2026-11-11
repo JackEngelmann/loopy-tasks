@@ -35,7 +35,7 @@ export function highlight(text, pane) {
 // the text of each row as shown on screen, in list order
 function searchTexts(pane) {
   if (pane === 'loops') return loopsList().map(l => l.title);
-  const inAll = currentLoop().id === null;
+  const inAll = currentLoop().kind === 'all';
   return currentTasks().map(t => {
     const time = timeOf(t), l = loopById(t.loopId);
     return [time !== null && fmtTime(time), inAll && l && l.title, displayTitle(t)].filter(Boolean).join(' ');
