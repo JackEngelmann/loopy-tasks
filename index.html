@@ -318,6 +318,7 @@
   }
   #noteHead { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #noteMode { flex-shrink: 0; text-transform: none; }
+  #noteBox.title #noteInput { height: 5.5em; }
   #noteMode.error { color: var(--cut) !important; }
   #noteBox.normal #noteMode { color: var(--sel); }
   /* the selected character stands in for vim's block cursor */
@@ -416,9 +417,8 @@ const ui = {
   focus: 'loops',     // one of PANES
   loopIdx: 0,         // indexes loopsList(): virtual views first, then the real loops
   taskIdx: 0,
-  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename' | 'note', id?, at?, anchorId?, below? }
+  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename' | 'note' | 'title', id?, at?, anchorId?, below? }
   cutId: null,
-  showDone: false,
   search: null,       // see the Search section
   flash: null,        // { text, error? } note in the status bar, cleared on the next key
   templates: false,   // template mode: the panes edit templates instead of loops
@@ -510,13 +510,9 @@ function age(ms) {
 
 const displayTitle = t => ['@w', '@i'].reduce(stripToken, t.title.replace(TIME_RE, '$1'));
 
-// middle pane: open tasks in order (waiting ones included), then done (if shown);
+// middle pane: open tasks in order (waiting ones included); done tasks are hidden.
 // the right column mirrors important, waiting and timed tasks
-function tasksFor(loop) {
-  const ts = db().tasks.filter(t => loop.id === null || t.loopId === loop.id);
-  const open = ts.filter(t => !t.done);
-  return ui.showDone ? [...open, ...ts.filter(t => t.done)] : open;
-}
+const tasksFor = loop => openTasks(loop.id);
 
 // a loop's next action is its first open, non-waiting task; reorder with J/K to change it.
 // tasks without a loop stand on their own, so each of them counts as a next action.
@@ -759,11 +755,11 @@ function renderChrome() {
 
   const cut = db().tasks.find(t => t.id === ui.cutId);
   const typing = ui.search && ui.search.typing;
-  const hints = ui.editing && ui.editing.kind === 'note'
+  const hints = inModal()
     ? (vim.cmd !== null ? '<kbd>enter</kbd> run  <kbd>esc</kbd> cancel  <kbd>:w</kbd> save  <kbd>:wq</kbd>/<kbd>:x</kbd> save and close  <kbd>:q</kbd> close  <kbd>:q!</kbd> discard'
       : vim.mode === 'normal'
-      ? '<kbd>hjkl</kbd> <kbd>w/b/e</kbd> <kbd>0/$</kbd> <kbd>gg/G</kbd> move  <kbd>i/a/I/A/o/O</kbd> insert  <kbd>x</kbd> <kbd>dd</kbd> <kbd>D</kbd> <kbd>d/c</kbd>+<kbd>w/e/b/$/0/iw</kbd> <kbd>cc</kbd> <kbd>C</kbd> delete/change  <kbd>:wq</kbd>/<kbd>ZZ</kbd> save  <kbd>:w</kbd> save, stay  <kbd>:q!</kbd> discard  empty removes the note'
-      : '<kbd>esc</kbd> normal mode  <kbd>⌘/ctrl+enter</kbd> save  <kbd>enter</kbd> new line')
+      ? '<kbd>hjkl</kbd> <kbd>w/b/e</kbd> <kbd>0/$</kbd> <kbd>gg/G</kbd> move  <kbd>i/a/I/A/o/O</kbd> insert  <kbd>x</kbd> <kbd>dd</kbd> <kbd>D</kbd> <kbd>d/c</kbd>+<kbd>w/e/b/$/0/iw</kbd> <kbd>cc</kbd> <kbd>C</kbd> delete/change  <kbd>:wq</kbd>/<kbd>ZZ</kbd> save  <kbd>:w</kbd> save, stay  <kbd>:q!</kbd> discard' + (ui.editing.kind === 'note' ? '  empty removes the note' : '')
+      : '<kbd>esc</kbd> normal mode  <kbd>⌘/ctrl+enter</kbd> save' + (ui.editing.kind === 'note' ? '  <kbd>enter</kbd> new line' : ''))
     : ui.editing
     ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>@i</kbd> important  <kbd>14:30</kbd> / <kbd>+20m</kbd> timed'
     : typing
@@ -774,9 +770,9 @@ function renderChrome() {
       ? `<kbd>T</kbd> back to loops  <kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h/l</kbd> panes  <kbd>o/O</kbd> new ${ui.focus === 'loops' ? 'template' : 'task'} below/above  <kbd>r</kbd> rename  <kbd>m</kbd> note  <kbd>d</kbd> delete  <kbd>w/i</kbd> waiting/important  <kbd>/</kbd> search  <kbd>u</kbd> undo`
     : ui.focus === 'loops'
       ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>t</kbd> new from template  <kbd>T</kbd> templates  <kbd>o/O</kbd> new loop below/above  <kbd>r</kbd> rename  <kbd>m</kbd> note  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo'
-      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>o/O</kbd> new below/above  <kbd>space</kbd> done  <kbd>w</kbd> waiting  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>m</kbd> note  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo`;
+      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>o/O</kbd> new below/above  <kbd>space</kbd> done  <kbd>w</kbd> waiting  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>m</kbd> note  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo`;
 
-  document.getElementById('mode').textContent = ui.editing && ui.editing.kind === 'note' ? `NOTE ${vim.cmd !== null ? 'COMMAND' : vim.mode.toUpperCase()}`
+  document.getElementById('mode').textContent = inModal() ? `${ui.editing.kind === 'note' ? 'NOTE' : 'RENAME'} ${vim.cmd !== null ? 'COMMAND' : vim.mode.toUpperCase()}`
     : ui.editing ? 'INSERT' : typing ? 'SEARCH'
     : ui.picker ? 'TEMPLATE' : ui.focus.toUpperCase();
   document.getElementById('tplBadge').hidden = !ui.templates;
@@ -920,8 +916,8 @@ searchInput.addEventListener('blur', () => {
 
 function commitEdit(value) {
   const ed = ui.editing;
-  if (ed.kind === 'note') {
-    saveNote(value);
+  if (inModal()) {
+    saveModal(value);
     ui.editing = null;
     return render();
   }
@@ -1067,21 +1063,38 @@ function toggleMarker(tok) {
   if (tok === '@w' && isWaiting(task)) ui.flash = { text: 'm to note where you left off' };
 }
 
-// m: note on the selected loop or task
-function editNote() {
+// m edits the note, R the title, both in the modal editor
+const inModal = () => !!ui.editing && (ui.editing.kind === 'note' || ui.editing.kind === 'title');
+
+function openModal(kind) {
   const item = ui.focus === 'loops' ? currentLoop() : selTask();
   if (!item || !item.id) return;
-  ui.editing = { kind: 'note', id: item.id };
-  noteInput.value = item.note || '';
+  ui.editing = { kind, id: item.id };
+  noteInput.value = kind === 'note' ? item.note || '' : item.title;
   Object.assign(vim, { mode: 'normal', pending: '', count: '', opCount: 1, goal: null, cmd: null, msg: '' });
   setCursor(0);
-  document.getElementById('noteHead').textContent = `Note · ${loopById(item.id) ? item.title : displayTitle(item)}`;
+  document.getElementById('noteHead').textContent =
+    `${kind === 'note' ? 'Note' : 'Rename'} · ${loopById(item.id) ? item.title : displayTitle(item)}`;
 }
 
 const noteInput = document.getElementById('noteInput');
 const cleanNote = value => value.replace(/[ \t]+$/gm, '').trim();
+// titles are one line
+const cleanTitle = value => value.replace(/\s*\n\s*/g, ' ').trim();
 const noteItem = () => loopById(ui.editing.id) || db().tasks.find(t => t.id === ui.editing.id);
-const noteChanged = () => cleanNote(noteInput.value) !== (noteItem().note || '');
+const noteChanged = () => ui.editing.kind === 'note'
+  ? cleanNote(noteInput.value) !== (noteItem().note || '')
+  : cleanTitle(noteInput.value) !== noteItem().title;
+
+function saveModal(value) {
+  if (ui.editing.kind === 'note') return saveNote(value);
+  // same as inline rename: an empty title changes nothing
+  const item = noteItem();
+  value = cleanTitle(value);
+  if (!item || !value) return;
+  if (!loopById(item.id) && !ui.templates) value = resolveRelative(value);
+  if (value !== item.title) mutate(() => { item.title = value; });
+}
 
 // an empty note removes it
 function saveNote(value) {
@@ -1241,7 +1254,12 @@ function normalKey(key) {
 // :w saves and stays, :wq / :x save and close, :q closes if nothing changed, :q! discards
 function runCommand(c) {
   vim.cmd = null;
-  if (c === 'w') { saveNote(noteInput.value); vim.msg = 'written'; return render(); }
+  if (c === 'w') {
+    saveModal(noteInput.value);
+    if (ui.editing.kind === 'title') noteInput.value = noteItem().title;   // shows a resolved +20m
+    vim.msg = 'written';
+    return render();
+  }
   if (c === 'wq' || c === 'x') return commitEdit(noteInput.value);
   if (c === 'q!' || (c === 'q' && !noteChanged())) return cancelEdit();
   vim.msg = c === 'q' ? 'E37: no write since last change (add ! to override)' : `E492: not an editor command: ${c}`;
@@ -1300,6 +1318,7 @@ noteInput.addEventListener('keydown', e => {
     return commitEdit(noteInput.value);
   }
   if (vim.mode === 'insert') {
+    if (e.key === 'Enter' && ui.editing.kind === 'title') return e.preventDefault();   // titles are one line
     if (e.key !== 'Escape') return;   // typing works as usual
     e.preventDefault();
     const p = noteInput.selectionStart;
@@ -1320,7 +1339,7 @@ noteInput.addEventListener('mouseup', () => {
 
 // clicking elsewhere saves too, so a long note is never lost
 noteInput.addEventListener('blur', () => {
-  if (ui.editing && ui.editing.kind === 'note') commitEdit(noteInput.value);
+  if (inModal()) commitEdit(noteInput.value);
 });
 
 function renderNoteMode() {
@@ -1331,10 +1350,11 @@ function renderNoteMode() {
 }
 
 function renderNoteBox() {
-  const open = !!(ui.editing && ui.editing.kind === 'note');
+  const open = inModal();
   const box = document.getElementById('noteBox');
   box.hidden = !open;
   box.classList.toggle('normal', open && vim.mode === 'normal');
+  box.classList.toggle('title', open && ui.editing.kind === 'title');
   renderNoteMode();
   if (open && document.activeElement !== noteInput) noteInput.focus();
 }
@@ -1424,7 +1444,8 @@ const keymap = {
   o: () => add(true),
   O: () => add(false),
   r: rename,
-  m: editNote,
+  m: () => openModal('note'),
+  R: () => openModal('title'),
   d: remove,
   ' ': toggleDone,
   w: () => toggleMarker('@w'),
@@ -1432,7 +1453,6 @@ const keymap = {
   x: cut,
   p: paste,
   u: undo,
-  '.': () => { ui.showDone = !ui.showDone; },
   '/': startSearch,
   n: () => searchNext(1),
   N: () => searchNext(-1),
