@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>loopy-tasks tests</title>
+<style>
+  body { font: 13px/1.5 ui-monospace, Menlo, monospace; margin: 16px; }
+  #report { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<pre id="report">running…</pre>
+<script type="module">
+  import { run } from './harness.js';
+  // ?only=unit or ?only=e2e runs one group
+  const only = new URLSearchParams(location.search).get('only');
+  if (only !== 'e2e') await import('./unit.js');
+  if (only !== 'unit') await import('./e2e.js');
+  await run();
+</script>
+</body>
+</html>

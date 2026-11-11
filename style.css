@@ -1,0 +1,338 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
+
+:root {
+  color-scheme: light dark;
+  --bg: #f6f5f2;
+  --pane: #ffffff;
+  --border: #e2e0da;
+  --text: #1c1b19;
+  --text-2: #55534f;
+  --text-3: #85827c;
+  --sel: #3b5bdb;
+  --sel-text: #ffffff;
+  --sel-dim: #e3e8fb;
+  --stale: #b7791f;
+  --stale-bg: #fff6d6;
+  --tag: #4c5fb8;
+  --cut: #c0392b;
+  --wait: #2f7f86;
+  --imp: #b83280;
+  --mark: #ffe08a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413;
+    --pane: #1e1e1c;
+    --border: #3a3935;
+    --text: #f2f0eb;
+    --text-2: #c4c1ba;
+    --text-3: #98958e;
+    --sel: #7c93f0;
+    --sel-text: #111111;
+    --sel-dim: #262c45;
+    --stale: #e6b94a;
+    --stale-bg: #2b2412;
+    --tag: #9aaaf0;
+    --cut: #e57368;
+    --wait: #6cc4cc;
+    --imp: #f08bc0;
+    --mark: #6b5512;
+  }
+}
+
+body {
+  font: 13.5px/1.5 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+header b { color: var(--text); font-weight: 600; }
+#crumb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+.file-btn:hover { color: var(--text); border-color: var(--sel); }
+footer .flash { color: var(--text-2); }
+footer .flash.error { color: var(--cut); }
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(260px, 28%) 1fr minmax(240px, 28%);
+  gap: 8px;
+  padding: 0 8px;
+  min-height: 0;
+}
+
+/* right column: important, waiting, timed (read-only) */
+.side { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+.side .pane { flex: 1 1 0; }
+
+/* narrow windows (e.g. half a screen): the right column folds into a summary line,
+   and s shows it as an overlay */
+#summary {
+  display: none;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 0 14px 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+#summary .wait { color: var(--wait); }
+#summary .time { color: var(--tag); }
+#summary .due { color: var(--stale); }
+#summary .hint { color: var(--text-3); margin-left: auto; }
+@media (max-width: 1100px) {
+  main { grid-template-columns: minmax(220px, 38%) 1fr; }
+  #summary { display: flex; }
+  .side { display: none; }
+  body.side-open .side {
+    display: flex;
+    position: fixed;
+    top: 64px;
+    right: 8px;
+    bottom: 36px;
+    width: min(380px, calc(100vw - 32px));
+    padding: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    z-index: 5;
+  }
+}
+
+.pane {
+  background: var(--pane);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.pane.focused { border-color: var(--sel); }
+
+.pane-head {
+  padding: 6px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+#waitingPane .pane-head span:first-child { color: var(--wait); }
+#importantPane .pane-head span:first-child { color: var(--imp); }
+.star { color: var(--imp); }
+
+ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
+
+.row {
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  cursor: default;
+  white-space: nowrap;
+}
+.row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.row .count { color: var(--text-3); font-size: 12px; }
+
+/* loops */
+.row.virtual .name { color: var(--text-2); }
+.row.gap-after { margin-bottom: 14px; }
+
+/* real loops: title + counts, then the first next action */
+.row.loop { flex-direction: column; align-items: stretch; gap: 0; padding: 4px 10px; }
+/* counts wrap below the title rather than truncating it */
+.loop-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; min-width: 0; }
+.loop-line .name { flex: 0 1 auto; font-weight: 600; }
+.counts { margin-left: auto; color: var(--text-3); font-size: 11px; }
+.loop-next {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.loop-next .name { font-weight: normal; }
+/* notes (m): where you left off, with their age */
+.loop-note, .task-note {
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row.has-note { flex-wrap: wrap; row-gap: 0; }
+.task-note { flex-basis: 100%; padding-left: calc(1ch + 8px); }
+.task-note.full { white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-age { color: var(--text-3); opacity: .8; }
+.note-mark { color: var(--text-3); font-size: 11px; }
+.wait-age { color: var(--wait); font-size: 11px; font-variant-numeric: tabular-nums; }
+.note-block {
+  margin: 0 10px 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  border-left: 2px solid var(--border);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* long loop notes are cut off; m shows all of it */
+.note-block .clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+.row.stale { background: var(--stale-bg); }
+.row.stale .name, .row.stale .loop-next { color: var(--stale); }
+.row.waiting-loop .name, .row.waiting-loop .loop-next { color: var(--wait); }
+
+/* selection: solid bar in focused pane, faint in the others */
+.pane:not(.focused) .row.sel { background: var(--sel-dim); }
+.pane.focused .row.sel { background: var(--sel); }
+.pane.focused .row.sel, .pane.focused .row.sel * { color: var(--sel-text) !important; }
+/* the edit box keeps its own background, so it needs normal text color */
+.pane.focused .row.sel .edit { color: var(--text) !important; }
+
+/* tasks */
+.check { color: var(--text-3); width: 1ch; }
+.row.done .name { color: var(--text-3); text-decoration: line-through; }
+.row.cut .name { color: var(--cut); }
+.tag { color: var(--tag); font-size: 12px; }
+.tag.none { color: var(--text-3); }
+
+/* waiting pane: items outside the selected loop fade back */
+#waiting .check { color: var(--wait); }
+#waiting .row.other, #timed .row.other { opacity: .45; }
+
+/* timed pane */
+#timedPane .pane-head span:first-child { color: var(--tag); }
+.time { color: var(--tag); font-variant-numeric: tabular-nums; }
+.row.due .time { color: var(--stale); font-weight: 600; }
+
+/* the next action of a loop stands out; the rest of its tasks recede */
+.row.next .check { color: var(--sel); }
+.row.backlog .name { color: var(--text-2); }
+
+.empty { padding: 10px; color: var(--text-3); }
+.empty.stale { color: var(--stale); }
+
+.edit {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--pane);
+  border: 1px solid var(--sel);
+  border-radius: 3px;
+  padding: 0 4px;
+  outline: none;
+}
+
+footer {
+  display: flex;
+  gap: 16px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text-3);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+footer .mode {
+  color: var(--sel-text);
+  background: var(--sel);
+  padding: 0 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+footer .clip { color: var(--cut); }
+#searchBox { color: var(--text); }
+#searchBox input {
+  width: 28ch;
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: none;
+  outline: none;
+}
+#searchInfo { color: var(--text-2); }
+.no-match { color: var(--cut); }
+
+/* template mode: tinted panes and a badge so it's never mistaken for real loops */
+footer .mode.tpl { background: var(--imp); }
+.template-mode #loopsPane, .template-mode #tasksPane { border-style: dashed; }
+.template-mode .pane.focused { border-color: var(--imp); }
+.template-mode .pane.focused .row.sel { background: var(--imp); }
+.template-mode #loopsTitle { color: var(--imp); }
+
+/* template picker (t) */
+#picker {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  max-height: 60vh;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  z-index: 10;
+}
+
+/* note editor (m): multi-line with a few vim keys; :wq saves */
+#noteBox {
+  position: fixed;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, calc(100vw - 32px));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  z-index: 10;
+}
+#noteHead { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#noteMode { flex-shrink: 0; text-transform: none; }
+#noteBox.title #noteInput { height: 5.5em; }
+#noteMode.error { color: var(--cut) !important; }
+#noteBox.normal #noteMode { color: var(--sel); }
+/* the selected character stands in for vim's block cursor */
+#noteBox.normal #noteInput { caret-color: transparent; }
+/* on an empty line there's no character to select, so show the caret instead */
+#noteBox.normal #noteInput.no-char { caret-color: var(--sel); }
+#noteBox.normal #noteInput::selection { background: var(--sel); color: var(--sel-text); }
+#noteInput {
+  height: min(320px, 50vh);
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: none;
+  border: none;
+  outline: none;
+  padding: 10px;
+}
+
+/* search hits */
+mark { background: var(--mark); color: inherit; border-radius: 2px; }
+footer kbd { font: inherit; color: var(--text-2); }
+footer .spacer { flex: 1; }
