@@ -8,6 +8,7 @@ import { render } from './ui/render/index.js';
 import { checkReminders } from './features/reminders.js';
 import { seed } from './features/seed.js';
 import './features/io.js';
+import { initSplitter } from './ui/splitter.js';
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
 // normal and picker mode keys come from the command table; the typing modes
@@ -52,6 +53,7 @@ narrow.addEventListener('change', () => { ui.sideOpen = false; render(); });
 
 load();
 if (!state.loops.length && !state.tasks.length) seed();
+initSplitter();
 render();
 
 // keep "due" highlighting and ages current; skip while typing so the input isn't reset

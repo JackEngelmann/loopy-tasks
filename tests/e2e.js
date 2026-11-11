@@ -10,6 +10,7 @@ async function fresh({ width = 1400, stored = null } = {}) {
   localStorage.removeItem(STORAGE_KEY);
   if (stored) localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   localStorage.removeItem('loopy-notified');
+  localStorage.removeItem('loopy-layout');
   document.getElementById('app')?.remove();
   const frame = document.createElement('iframe');
   frame.id = 'app';
@@ -403,6 +404,47 @@ test('narrow window: summary line, s toggles the side overlay', async () => {
   ok(doc.body.classList.contains('side-open'));
   keys('Escape');
   ok(!doc.body.classList.contains('side-open'));
+});
+
+test('dragging the edge resizes the loops pane; double-click resets', async () => {
+  await fresh();
+  const handle = $('#loopsSplitter');
+  const pane = $('#loopsPane');
+  const before = pane.offsetWidth;
+  const left = $('main').getBoundingClientRect().left;
+  const pointer = (type, x) => handle.dispatchEvent(new w.PointerEvent(type, { clientX: x, bubbles: true, pointerId: 1 }));
+  pointer('pointerdown', left + 8 + before);
+  pointer('pointermove', left + 8 + 500);
+  pointer('pointerup', left + 8 + 500);
+  eq(pane.offsetWidth, 500);
+  eq(JSON.parse(w.localStorage.getItem('loopy-layout')), { 'loops-wide': 500 });
+  pointer('pointerdown', 0);
+  pointer('pointermove', 0);
+  pointer('pointerup', 0);
+  eq(pane.offsetWidth, 180, 'not narrower than the minimum');
+  handle.dispatchEvent(new w.MouseEvent('dblclick', { bubbles: true }));
+  eq(pane.offsetWidth, before);
+  eq(JSON.parse(w.localStorage.getItem('loopy-layout')), {});
+});
+
+test('dragging the second edge resizes the right column', async () => {
+  await fresh();
+  const handle = $('#sideSplitter');
+  const side = $('.side');
+  const before = side.offsetWidth;
+  const right = $('main').getBoundingClientRect().right;
+  const pointer = (type, x) => handle.dispatchEvent(new w.PointerEvent(type, { clientX: x, bubbles: true, pointerId: 1 }));
+  pointer('pointerdown', right - 8 - before);
+  pointer('pointermove', right - 8 - 450);
+  pointer('pointerup', right - 8 - 450);
+  eq(side.offsetWidth, 450);
+  ok($('#tasksPane').offsetWidth >= 260, 'tasks keeps its minimum');
+  pointer('pointerdown', 0);
+  pointer('pointermove', 0);
+  pointer('pointerup', 0);
+  eq($('#tasksPane').offsetWidth, 260, 'dragging all the way left stops at the tasks minimum');
+  handle.dispatchEvent(new w.MouseEvent('dblclick', { bubbles: true }));
+  eq(side.offsetWidth, before);
 });
 
 test('data saved before versioning still loads', async () => {

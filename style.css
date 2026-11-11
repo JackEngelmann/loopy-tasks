@@ -78,7 +78,8 @@ footer .flash.error { color: var(--cut); }
 main {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(260px, 28%) 1fr minmax(240px, 28%);
+  /* --loops-w and --side-w are set by dragging the edges between the panes (splitter.js) */
+  grid-template-columns: var(--loops-w, minmax(260px, 28%)) 1fr var(--side-w, minmax(240px, 28%));
   gap: 8px;
   padding: 0 8px;
   min-height: 0;
@@ -104,7 +105,8 @@ main {
 #summary .due { color: var(--stale); }
 #summary .hint { color: var(--text-3); margin-left: auto; }
 @media (max-width: 1100px) {
-  main { grid-template-columns: minmax(220px, 38%) 1fr; }
+  main { grid-template-columns: var(--loops-w, minmax(220px, 38%)) 1fr; }
+  #sideSplitter { display: none; }
   #summary { display: flex; }
   .side { display: none; }
   body.side-open .side {
@@ -195,7 +197,7 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 .note-mark { color: var(--text-3); font-size: 11px; }
 .wait-age { color: var(--wait); font-size: 11px; font-variant-numeric: tabular-nums; }
 .note-block {
-  margin: 0 10px 6px;
+  margin: 2px 10px 20px;
   padding: 6px 8px;
   font-size: 12px;
   color: var(--text-2);
@@ -208,6 +210,33 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 .row.stale { background: var(--stale-bg); }
 .row.stale .name, .row.stale .loop-next { color: var(--stale); }
 .row.waiting-loop .name, .row.waiting-loop .loop-next { color: var(--wait); }
+
+/* drag handles on the right edge of the loops and tasks panes, over the gap */
+#loopsPane, #tasksPane { position: relative; }
+.splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -8px;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 1;
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--sel);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.splitter:hover::after, body.resizing .splitter::after { opacity: .6; }
+body.resizing { cursor: col-resize; user-select: none; }
 
 /* selection: solid bar in focused pane, faint in the others */
 .pane:not(.focused) .row.sel { background: var(--sel-dim); }
