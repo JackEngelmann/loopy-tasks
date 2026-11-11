@@ -188,6 +188,30 @@
     color: var(--text-2);
   }
   .loop-next .name { font-weight: normal; }
+  /* notes (m): where you left off, with their age */
+  .loop-note, .task-note {
+    font-size: 11px;
+    color: var(--text-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row.has-note { flex-wrap: wrap; row-gap: 0; }
+  .task-note { flex-basis: 100%; padding-left: calc(1ch + 8px); }
+  .task-note.full { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note-age { color: var(--text-3); opacity: .8; }
+  .note-mark { color: var(--text-3); font-size: 11px; }
+  .wait-age { color: var(--wait); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .note-block {
+    margin: 0 10px 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: var(--text-2);
+    border-left: 2px solid var(--border);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  /* long loop notes are cut off; m shows all of it */
+  .note-block .clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
   .row.stale { background: var(--stale-bg); }
   .row.stale .name, .row.stale .loop-next { color: var(--stale); }
   .row.waiting-loop .name, .row.waiting-loop .loop-next { color: var(--wait); }
@@ -282,6 +306,38 @@
     z-index: 10;
   }
 
+  /* note editor (m): multi-line with a few vim keys; :wq saves */
+  #noteBox {
+    position: fixed;
+    top: 12%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(640px, calc(100vw - 32px));
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    z-index: 10;
+  }
+  #noteHead { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #noteMode { flex-shrink: 0; text-transform: none; }
+  #noteMode.error { color: var(--cut) !important; }
+  #noteBox.normal #noteMode { color: var(--sel); }
+  /* the selected character stands in for vim's block cursor */
+  #noteBox.normal #noteInput { caret-color: transparent; }
+  /* on an empty line there's no character to select, so show the caret instead */
+  #noteBox.normal #noteInput.no-char { caret-color: var(--sel); }
+  #noteBox.normal #noteInput::selection { background: var(--sel); color: var(--sel-text); }
+  #noteInput {
+    height: min(320px, 50vh);
+    resize: vertical;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    background: none;
+    border: none;
+    outline: none;
+    padding: 10px;
+  }
+
   /* search hits */
   mark { background: var(--mark); color: inherit; border-radius: 2px; }
   footer kbd { font: inherit; color: var(--text-2); }
@@ -329,6 +385,11 @@
   <ul id="pickerList"></ul>
 </div>
 
+<div class="pane focused" id="noteBox" hidden>
+  <div class="pane-head"><span id="noteHead"></span><span id="noteMode"></span></div>
+  <textarea id="noteInput" spellcheck="false"></textarea>
+</div>
+
 <footer id="status">
   <span class="mode tpl" id="tplBadge" hidden>TEMPLATES</span>
   <span class="mode" id="mode"></span>
@@ -355,7 +416,7 @@ const ui = {
   focus: 'loops',     // one of PANES
   loopIdx: 0,         // indexes loopsList(): virtual views first, then the real loops
   taskIdx: 0,
-  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename', id?, at?, anchorId?, below? }
+  editing: null,      // { kind: 'new-loop' | 'new-task' | 'rename' | 'note', id?, at?, anchorId?, below? }
   cutId: null,
   showDone: false,
   search: null,       // see the Search section
@@ -369,6 +430,7 @@ const ui = {
 function load() {
   try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || state; } catch {}
   state.templates = state.templates || { loops: [], tasks: [] };
+  stampWaiting();   // tasks that were waiting before this was tracked count from now
 }
 function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -381,7 +443,16 @@ function mutate(fn) {
   history.push(JSON.stringify(state));
   if (history.length > 200) history.shift();
   fn();
+  stampWaiting();
   persist();
+}
+
+// remember when a task started waiting, however @w got there (w, typing, import, template)
+function stampWaiting() {
+  state.tasks.forEach(t => {
+    if (isWaiting(t) && !t.done) t.waitingSince = t.waitingSince || Date.now();
+    else delete t.waitingSince;
+  });
 }
 
 // the virtual "All" loop has no id, so tasks created there get no loop;
@@ -418,6 +489,24 @@ function timeOf(t) {
 }
 const fmtTime = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+
+// "+20m", "+1h", "+1h30" become a clock time when the task is saved, so it stays put;
+// they replace any time already in the title. Times have no date, so cap at 23:59.
+const REL_RE = /(^|\s)\+(?:(\d+)h(?:(\d+)m?)?|(\d+)m)(?=\s|$)/;
+function resolveRelative(title) {
+  const m = title.match(REL_RE);
+  if (!m) return title;
+  const mins = m[4] !== undefined ? +m[4] : +m[2] * 60 + +(m[3] || 0);
+  const at = fmtTime(Math.min(nowMinutes() + mins, 23 * 60 + 59));
+  return title.replace(new RegExp(TIME_RE.source, 'g'), '$1').replace(REL_RE, `$1${at}`)
+    .replace(/\s+/g, ' ').trim();
+}
+
+// "3h" since the note was written
+function age(ms) {
+  const min = Math.floor((Date.now() - ms) / 60_000);
+  return min < 1 ? 'now' : min < 60 ? `${min}m` : min < 1440 ? `${Math.floor(min / 60)}h` : `${Math.floor(min / 1440)}d`;
+}
 
 const displayTitle = t => ['@w', '@i'].reduce(stripToken, t.title.replace(TIME_RE, '$1'));
 
@@ -458,6 +547,7 @@ function render() {
   clamp();
   dropStaleSearch();
   renderPicker();
+  renderNoteBox();
   renderLoops();
   renderTasks();
   renderSide('important', importantTasks(), 'Nothing important. Press i on a task.');
@@ -516,6 +606,7 @@ function renderLoops() {
     rows.push(`<li class="${cls}" data-i="${i}">
       <div class="loop-line">${name}${star}<span class="counts">${counts}</span></div>
       <div class="loop-next"><span class="name">${nextLine}</span>${more ? `<span class="counts">+${more}</span>` : ''}</div>
+      ${noteLine(l, 'loop-note')}
     </li>`);
   });
   if (ed && ed.kind === 'new-loop') rows.splice(virtuals().length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
@@ -530,13 +621,21 @@ function renderLoops() {
     : [stale && `! ${stale}`, waiting && `◷ ${waiting}`].filter(Boolean).join('  ');
 }
 
+// the note of a loop or task as a dim line: the first line and "+N" more, or all of it
+function noteLine(item, cls, full) {
+  if (!item.note) return '';
+  const [first, ...rest] = item.note.split('\n');
+  const text = full ? esc(item.note) : esc(first) + (rest.length ? ` <span class="note-age">+${rest.length}</span>` : '');
+  return `<div class="${cls}${full ? ' full' : ''}">✎ ${text} <span class="note-age">· ${age(item.noteAt)}</span></div>`;
+}
+
 // a real loop without a next action is "waiting" if something is waiting, else "stale"
 function loopStatus(l) {
   if (l.id === null || nextOf(l.id)) return 'ok';
   return openTasks(l.id).some(isWaiting) ? 'waiting' : 'stale';
 }
 
-function taskRow(t, i, { selected, showTag, other, marks }) {
+function taskRow(t, i, { selected, showTag, other, marks, notes }) {
   const ed = ui.editing;
   const time = timeOf(t);
   const next = marks && isNext(t);
@@ -548,7 +647,8 @@ function taskRow(t, i, { selected, showTag, other, marks }) {
     other && 'other',
     // template times aren't appointments, so they're never due
     !t.done && time !== null && time <= nowMinutes() && !state.templates.tasks.includes(t) && 'due',
-    t.id === ui.cutId && 'cut'].filter(Boolean).join(' ');
+    t.id === ui.cutId && 'cut',
+    notes && t.note && 'has-note'].filter(Boolean).join(' ');
   // search hits are highlighted in the middle pane only (marks is set there)
   const hl = s => marks ? highlight(s, 'tasks') : esc(s);
   const l = loopById(t.loopId);
@@ -559,7 +659,12 @@ function taskRow(t, i, { selected, showTag, other, marks }) {
   const check = t.done ? '✓' : isWaiting(t) ? '◷' : next ? '▸' : '·';
   const timeEl = time !== null ? `<span class="time">${hl(fmtTime(time))}</span>` : '';
   const star = !t.done && isImportant(t) ? `<span class="star">★</span>` : '';
-  return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${star}${timeEl}${tag}${name}</li>`;
+  // how long it's been waiting
+  const waited = !t.done && t.waitingSince ? `<span class="wait-age">${age(t.waitingSince)}</span>` : '';
+  // the middle pane shows the note below the task; the side panels just mark it
+  // (in full while the task is selected)
+  const note = notes ? noteLine(t, 'task-note', selected) : t.note ? '<span class="note-mark">✎</span>' : '';
+  return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${star}${timeEl}${tag}${name}${waited}${note}</li>`;
 }
 
 function newTaskRow() {
@@ -576,6 +681,7 @@ function renderTasks() {
     showTag: loop.id === null,
     // highlight next actions (not in templates, and not in the side panels)
     marks: !ui.templates,
+    notes: true,
   }));
   if (adding) rows.splice(ui.editing.at, 0, newTaskRow());
   if (!rows.length) {
@@ -585,6 +691,9 @@ function renderTasks() {
       : loop.id === null ? `<li class="empty">No tasks. Press o to add one.</li>`
       : `<li class="empty stale">No next action. Press o to add one.</li>`);
   }
+  // the loop's note in full above its tasks (the left pane cuts it off)
+  if (loop.note) rows.unshift(`<li class="note-block"><div class="clamp">✎ ${esc(loop.note)} <span class="note-age">· ${age(loop.noteAt)}</span></div>`
+    + (loop.note.split('\n').length > 6 ? '<span class="note-age">m to see all</span>' : '') + '</li>');
   document.getElementById('tasks').innerHTML = rows.join('');
 
   const open = ts.filter(t => !t.done).length;
@@ -650,19 +759,25 @@ function renderChrome() {
 
   const cut = db().tasks.find(t => t.id === ui.cutId);
   const typing = ui.search && ui.search.typing;
-  const hints = ui.editing
-    ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>@i</kbd> important  <kbd>14:30</kbd> timed'
+  const hints = ui.editing && ui.editing.kind === 'note'
+    ? (vim.cmd !== null ? '<kbd>enter</kbd> run  <kbd>esc</kbd> cancel  <kbd>:w</kbd> save  <kbd>:wq</kbd>/<kbd>:x</kbd> save and close  <kbd>:q</kbd> close  <kbd>:q!</kbd> discard'
+      : vim.mode === 'normal'
+      ? '<kbd>hjkl</kbd> <kbd>w/b/e</kbd> <kbd>0/$</kbd> <kbd>gg/G</kbd> move  <kbd>i/a/I/A/o/O</kbd> insert  <kbd>x</kbd> <kbd>dd</kbd> <kbd>D</kbd> <kbd>d/c</kbd>+<kbd>w/e/b/$/0/iw</kbd> <kbd>cc</kbd> <kbd>C</kbd> delete/change  <kbd>:wq</kbd>/<kbd>ZZ</kbd> save  <kbd>:w</kbd> save, stay  <kbd>:q!</kbd> discard  empty removes the note'
+      : '<kbd>esc</kbd> normal mode  <kbd>⌘/ctrl+enter</kbd> save  <kbd>enter</kbd> new line')
+    : ui.editing
+    ? '<kbd>enter</kbd> save  <kbd>esc</kbd> cancel  <kbd>@w</kbd> waiting  <kbd>@i</kbd> important  <kbd>14:30</kbd> / <kbd>+20m</kbd> timed'
     : typing
       ? '<kbd>enter</kbd> confirm  <kbd>esc</kbd> cancel'
     : ui.picker
       ? '<kbd>j/k</kbd> select  <kbd>enter</kbd> create loop  <kbd>esc</kbd> cancel'
     : ui.templates
-      ? `<kbd>T</kbd> back to loops  <kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h/l</kbd> panes  <kbd>o/O</kbd> new ${ui.focus === 'loops' ? 'template' : 'task'} below/above  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>w/i</kbd> waiting/important  <kbd>/</kbd> search  <kbd>u</kbd> undo`
+      ? `<kbd>T</kbd> back to loops  <kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h/l</kbd> panes  <kbd>o/O</kbd> new ${ui.focus === 'loops' ? 'template' : 'task'} below/above  <kbd>r</kbd> rename  <kbd>m</kbd> note  <kbd>d</kbd> delete  <kbd>w/i</kbd> waiting/important  <kbd>/</kbd> search  <kbd>u</kbd> undo`
     : ui.focus === 'loops'
-      ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>t</kbd> new from template  <kbd>T</kbd> templates  <kbd>o/O</kbd> new loop below/above  <kbd>r</kbd> rename  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo'
-      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>o/O</kbd> new below/above  <kbd>space</kbd> done  <kbd>w</kbd> waiting  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo`;
+      ? '<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>l</kbd> open  <kbd>t</kbd> new from template  <kbd>T</kbd> templates  <kbd>o/O</kbd> new loop below/above  <kbd>r</kbd> rename  <kbd>m</kbd> note  <kbd>d</kbd> delete  <kbd>p</kbd> paste  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo'
+      : `<kbd>j/k</kbd> select  <kbd>J/K</kbd> reorder  <kbd>h</kbd> back  <kbd>o/O</kbd> new below/above  <kbd>space</kbd> done  <kbd>w</kbd> waiting  <kbd>i</kbd> important  <kbd>r</kbd> rename  <kbd>m</kbd> note  <kbd>x</kbd> cut  <kbd>p</kbd> paste  <kbd>d</kbd> delete  <kbd>.</kbd> show done  <kbd>/</kbd> search  <kbd>n/N</kbd> next/prev  <kbd>u</kbd> undo`;
 
-  document.getElementById('mode').textContent = ui.editing ? 'INSERT' : typing ? 'SEARCH'
+  document.getElementById('mode').textContent = ui.editing && ui.editing.kind === 'note' ? `NOTE ${vim.cmd !== null ? 'COMMAND' : vim.mode.toUpperCase()}`
+    : ui.editing ? 'INSERT' : typing ? 'SEARCH'
     : ui.picker ? 'TEMPLATE' : ui.focus.toUpperCase();
   document.getElementById('tplBadge').hidden = !ui.templates;
   document.getElementById('searchBox').hidden = !typing;
@@ -805,9 +920,17 @@ searchInput.addEventListener('blur', () => {
 
 function commitEdit(value) {
   const ed = ui.editing;
+  if (ed.kind === 'note') {
+    saveNote(value);
+    ui.editing = null;
+    return render();
+  }
   ui.editing = null;
   value = value.trim();
   if (!value) return render();
+  // relative times only mean something for real tasks; a template has no "now"
+  const isTask = ed.kind === 'new-task' || (ed.kind === 'rename' && !loopById(ed.id));
+  if (isTask && !ui.templates) value = resolveRelative(value);
 
   if (ed.kind === 'new-loop') {
     mutate(() => db().loops.splice(ed.at, 0, { id: uid(), title: value, createdAt: Date.now() }));
@@ -940,6 +1063,280 @@ function toggleMarker(tok) {
   const task = selTask();
   if (!task || task.done) return;
   mutate(() => { task.title = toggleToken(task.title, tok); });
+  // handing something off is a good moment to write down where you are
+  if (tok === '@w' && isWaiting(task)) ui.flash = { text: 'm to note where you left off' };
+}
+
+// m: note on the selected loop or task
+function editNote() {
+  const item = ui.focus === 'loops' ? currentLoop() : selTask();
+  if (!item || !item.id) return;
+  ui.editing = { kind: 'note', id: item.id };
+  noteInput.value = item.note || '';
+  Object.assign(vim, { mode: 'normal', pending: '', count: '', opCount: 1, goal: null, cmd: null, msg: '' });
+  setCursor(0);
+  document.getElementById('noteHead').textContent = `Note · ${loopById(item.id) ? item.title : displayTitle(item)}`;
+}
+
+const noteInput = document.getElementById('noteInput');
+const cleanNote = value => value.replace(/[ \t]+$/gm, '').trim();
+const noteItem = () => loopById(ui.editing.id) || db().tasks.find(t => t.id === ui.editing.id);
+const noteChanged = () => cleanNote(noteInput.value) !== (noteItem().note || '');
+
+// an empty note removes it
+function saveNote(value) {
+  const item = noteItem();
+  value = cleanNote(value);
+  if (item && value !== (item.note || '')) mutate(() => {
+    if (value) Object.assign(item, { note: value, noteAt: Date.now() });
+    else { delete item.note; delete item.noteAt; }
+  });
+}
+
+// ── Note editor: a few vim keys ──────────────────────────────────────────────
+// opens in normal mode at the top; esc goes back to normal mode, :wq (or ZZ) saves.
+// cmd/ctrl+enter saves from either mode. no undo inside the note.
+
+// pending: keys typed so far of a multi-key command (g, Z, d, c, di, ci)
+// opCount: the count typed before d/c, multiplied with the one after (2d3w)
+// cmd: the ":" command being typed (null when none); msg: its result, shown until the next key
+const vim = { mode: 'insert', pending: '', count: '', opCount: 1, goal: null, cmd: null, msg: '' };
+
+const lineStart = (v, p) => v.lastIndexOf('\n', p - 1) + 1;
+const lineEnd = (v, p) => { const i = v.indexOf('\n', p); return i < 0 ? v.length : i; };
+// in normal mode the cursor sits on a character, so the last one is the end of the line
+const lastCol = (v, p) => Math.max(lineStart(v, p), lineEnd(v, p) - 1);
+const charClass = c => c === undefined || /\s/.test(c) ? 0 : /\w/.test(c) ? 1 : 2;
+
+function vertical(v, p, dir) {
+  const start = lineStart(v, p);
+  if (vim.goal === null) vim.goal = p - start;
+  const target = dir > 0 ? lineEnd(v, p) + 1 : start - 1;
+  if (target < 0 || target > v.length) return p;
+  const ts = lineStart(v, target);
+  return Math.min(ts + vim.goal, lastCol(v, ts));
+}
+
+// may land past the last character, which d/c need to reach the end
+function wordForwardRaw(v, p) {
+  const c = charClass(v[p]);
+  while (p < v.length && c && charClass(v[p]) === c) p++;
+  while (p < v.length && !charClass(v[p])) p++;
+  return p;
+}
+const wordForward = (v, p) => Math.min(wordForwardRaw(v, p), Math.max(0, v.length - 1));
+function wordBack(v, p) {
+  p--;
+  while (p > 0 && !charClass(v[p])) p--;
+  const c = charClass(v[p]);
+  while (p > 0 && charClass(v[p - 1]) === c) p--;
+  return Math.max(0, p);
+}
+function wordEnd(v, p) {
+  p++;
+  while (p < v.length && !charClass(v[p])) p++;
+  const c = charClass(v[p]);
+  while (p < v.length - 1 && charClass(v[p + 1]) === c) p++;
+  return Math.min(p, Math.max(0, v.length - 1));
+}
+
+const MOTIONS = {
+  h: (v, p) => Math.max(lineStart(v, p), p - 1),
+  l: (v, p) => Math.min(lastCol(v, p), p + 1),
+  j: (v, p) => vertical(v, p, 1),
+  k: (v, p) => vertical(v, p, -1),
+  w: wordForward,
+  b: wordBack,
+  e: wordEnd,
+  0: (v, p) => lineStart(v, p),
+  $: (v, p) => lastCol(v, p),
+  '^': (v, p) => { const s = lineStart(v, p); const m = v.slice(s, lineEnd(v, p)).search(/\S/); return m < 0 ? s : s + m; },
+  G: (v) => lineStart(v, v.length),
+  gg: () => 0,
+};
+const ARROWS = { ArrowLeft: 'h', ArrowRight: 'l', ArrowDown: 'j', ArrowUp: 'k', Enter: 'j' };
+
+// show the cursor as a one-character selection in normal mode
+function setCursor(p, mode = vim.mode) {
+  const v = noteInput.value;
+  if (mode === 'normal') {
+    p = Math.max(0, Math.min(p, lastCol(v, p)));
+    const onChar = !!v[p] && v[p] !== '\n';
+    noteInput.classList.toggle('no-char', !onChar);
+    noteInput.setSelectionRange(p, onChar ? p + 1 : p);
+  } else {
+    noteInput.setSelectionRange(p, p);
+  }
+}
+
+function setMode(mode, p) {
+  vim.mode = mode;
+  vim.pending = vim.count = '';
+  vim.opCount = 1;
+  vim.cmd = null;
+  document.getElementById('noteBox').classList.toggle('normal', mode === 'normal');
+  render();   // mode label and hints
+  setCursor(p, mode);
+}
+
+// replace v[from, to) with text and put the cursor at `at`
+function splice(from, to, text, at, mode = vim.mode) {
+  const v = noteInput.value;
+  noteInput.value = v.slice(0, from) + text + v.slice(to);
+  if (mode !== vim.mode) setMode(mode, at); else setCursor(at);
+}
+
+function normalKey(key) {
+  const v = noteInput.value;
+  const p = noteInput.selectionStart;
+  if (/^[1-9]$/.test(key) || (key === '0' && vim.count)) { vim.count += key; return; }
+  const n = Math.max(1, +vim.count || 1);
+  const cmd = vim.pending + key;
+  vim.pending = '';
+  vim.count = '';
+  if (!'jk'.includes(cmd)) vim.goal = null;
+
+  // d/c followed by a motion or iw
+  const op = cmd[0];
+  if (cmd.length > 1 && 'dc'.includes(op) && cmd !== 'dd' && cmd !== 'cc') {
+    if (cmd.length === 2 && key === 'i') { vim.pending = cmd; vim.count = ''; return; }
+    const range = opRange(v, p, op, cmd.slice(1), n * vim.opCount);
+    vim.opCount = 1;
+    if (!range) return;
+    const [from, to] = range;
+    return splice(from, to, '', from, op === 'c' ? 'insert' : 'normal');
+  }
+
+  if (MOTIONS[cmd]) {
+    let q = p;
+    for (let i = 0; i < n; i++) q = MOTIONS[cmd](noteInput.value, q);
+    return setCursor(q);
+  }
+  const ls = lineStart(v, p), le = lineEnd(v, p);
+  switch (cmd) {
+    case 'g': case 'Z': vim.pending = cmd; return;
+    case ':': vim.cmd = ''; return renderNoteMode();
+    case 'd': case 'c': vim.pending = cmd; vim.opCount = n; return;
+    case 'i': return setMode('insert', p);
+    case 'a': return setMode('insert', Math.min(p + 1, le));
+    case 'I': return setMode('insert', MOTIONS['^'](v, p));
+    case 'A': return setMode('insert', le);
+    case 'o': return splice(le, le, '\n', le + 1, 'insert');
+    case 'O': return splice(ls, ls, '\n', ls, 'insert');
+    case 'x': return splice(p, Math.min(p + n, le), '', p);
+    case 'D': return splice(p, le, '', Math.max(ls, p - 1));
+    case 'dd': {
+      // n lines from here, including their line break
+      let end = le;
+      for (let i = 1; i < n && end < v.length; i++) end = lineEnd(v, end + 1);
+      const from = end < v.length ? ls : Math.max(0, ls - 1);
+      return splice(from, Math.min(v.length, end + 1), '', from === ls ? ls : lineStart(v, from - 1));
+    }
+    case 'C': return splice(p, le, '', p, 'insert');
+    case 'cc': return splice(ls, le, '', ls, 'insert');
+    case 'ZZ': return commitEdit(noteInput.value);
+  }
+}
+
+// :w saves and stays, :wq / :x save and close, :q closes if nothing changed, :q! discards
+function runCommand(c) {
+  vim.cmd = null;
+  if (c === 'w') { saveNote(noteInput.value); vim.msg = 'written'; return render(); }
+  if (c === 'wq' || c === 'x') return commitEdit(noteInput.value);
+  if (c === 'q!' || (c === 'q' && !noteChanged())) return cancelEdit();
+  vim.msg = c === 'q' ? 'E37: no write since last change (add ! to override)' : `E492: not an editor command: ${c}`;
+  renderNoteMode();
+}
+
+function commandKey(e) {
+  e.preventDefault();
+  if (e.key === 'Enter') return runCommand(vim.cmd.trim());
+  if (e.key === 'Escape' || (e.key === 'Backspace' && !vim.cmd)) vim.cmd = null;
+  else if (e.key === 'Backspace') vim.cmd = vim.cmd.slice(0, -1);
+  else if (e.key.length === 1) vim.cmd += e.key;
+  render();
+}
+
+// the text a d/c command acts on, as [from, to)
+function opRange(v, p, op, target, n) {
+  const ls = lineStart(v, p), le = lineEnd(v, p);
+  const repeat = (fn, q = p) => { for (let i = 0; i < n; i++) q = fn(v, q); return q; };
+  switch (target) {
+    case 'w': {
+      // cw on a word changes just the word (like ce), keeping the space after it
+      if (op === 'c' && charClass(v[p])) {
+        let q = p;
+        while (q + 1 < le && charClass(v[q + 1]) === charClass(v[p])) q++;
+        for (let i = 1; i < n; i++) q = wordEnd(v, q);
+        return [p, q + 1];
+      }
+      // dw stops at the end of the line
+      return [p, Math.min(repeat(wordForwardRaw), le)];
+    }
+    case 'e': return [p, Math.min(repeat(wordEnd) + 1, v.length)];
+    case 'b': return [repeat(wordBack), p];
+    case 'h': return [Math.max(ls, p - n), p];
+    case 'l': return [p, Math.min(le, p + n)];
+    case '0': return [ls, p];
+    case '^': { const q = MOTIONS['^'](v, p); return [Math.min(p, q), Math.max(p, q)]; }
+    case '$': return [p, le];
+    case 'iw': {
+      // the run of word, punctuation or space characters under the cursor
+      if (p >= le) return null;
+      const c = charClass(v[p]);
+      let from = p, to = p + 1;
+      while (from > ls && charClass(v[from - 1]) === c) from--;
+      while (to < le && charClass(v[to]) === c) to++;
+      return [from, to];
+    }
+  }
+  return null;
+}
+
+noteInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    return commitEdit(noteInput.value);
+  }
+  if (vim.mode === 'insert') {
+    if (e.key !== 'Escape') return;   // typing works as usual
+    e.preventDefault();
+    const p = noteInput.selectionStart;
+    return setMode('normal', Math.max(lineStart(noteInput.value, p), p - 1));
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;   // copy, select all, ...
+  if (vim.cmd !== null) return commandKey(e);
+  if (vim.msg) { vim.msg = ''; renderNoteMode(); }
+  if (e.key.length === 1 || ARROWS[e.key] || e.key === 'Escape') e.preventDefault();
+  if (e.key === 'Escape') { vim.pending = vim.count = ''; vim.opCount = 1; return; }
+  normalKey(ARROWS[e.key] || e.key);
+});
+
+// a click in normal mode puts the block cursor there
+noteInput.addEventListener('mouseup', () => {
+  if (vim.mode === 'normal' && noteInput.selectionStart === noteInput.selectionEnd) setCursor(noteInput.selectionStart);
+});
+
+// clicking elsewhere saves too, so a long note is never lost
+noteInput.addEventListener('blur', () => {
+  if (ui.editing && ui.editing.kind === 'note') commitEdit(noteInput.value);
+});
+
+function renderNoteMode() {
+  const el = document.getElementById('noteMode');
+  el.textContent = vim.cmd !== null ? `:${vim.cmd}▏` : vim.msg
+    || (vim.mode === 'normal' ? 'NORMAL' : 'INSERT');
+  el.classList.toggle('error', vim.msg.startsWith('E'));
+}
+
+function renderNoteBox() {
+  const open = !!(ui.editing && ui.editing.kind === 'note');
+  const box = document.getElementById('noteBox');
+  box.hidden = !open;
+  box.classList.toggle('normal', open && vim.mode === 'normal');
+  renderNoteMode();
+  if (open && document.activeElement !== noteInput) noteInput.focus();
 }
 
 function cut() {
@@ -1027,6 +1424,7 @@ const keymap = {
   o: () => add(true),
   O: () => add(false),
   r: rename,
+  m: editNote,
   d: remove,
   ' ': toggleDone,
   w: () => toggleMarker('@w'),
@@ -1256,6 +1654,7 @@ function seed() {
     tasks: ['Look at calendar', 'Look at messages', 'Pick 1–2 outcomes for today', 'Standup 09:30']
       .map(title => ({ id: uid(), title, loopId: daily.id, done: false, createdAt: Date.now() })),
   };
+  stampWaiting();
   persist();
 }
 
