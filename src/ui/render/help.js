@@ -5,7 +5,7 @@ import { helpSections } from '../commands.js';
 
 export function renderHelp() {
   const box = document.getElementById('help');
-  box.hidden = ui.mode !== 'help';
+  box.hidden = ui.mode !== 'help' && !ui.help;
   if (box.hidden) return;
   document.getElementById('helpBody').innerHTML = helpSections().map(([title, rows]) => `
     <section>

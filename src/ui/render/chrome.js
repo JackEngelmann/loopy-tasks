@@ -6,7 +6,7 @@ import { hintsFor } from '../commands.js';
 import { vim } from '../../editor/modal.js';
 
 // the modal editor has its own vim modes, each with its own hints
-const hintMode = () => ui.mode !== 'modal' ? ui.mode
+const hintMode = () => ui.help ? 'help' : ui.mode !== 'modal' ? ui.mode
   : vim.cmd !== null ? 'vim-command' : `vim-${vim.mode}`;
 
 function modeLabel() {

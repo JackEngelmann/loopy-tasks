@@ -452,6 +452,20 @@ test('dd then p moves a line; the register survives reopening the editor', async
   vim(':', 'q', '!', 'Enter');
 });
 
+test('editor: short hint line, ? shows all keys over it', async () => {
+  await fresh();
+  keys('j', 'j', 'm');
+  eq(text('#hints'), 'i insert  :wq/ZZ save  :q! discard  ? all keys');
+  vim('?');
+  ok(!$('#help').hidden);
+  ok(modalOpen(), 'the editor stays open');
+  ok(text('#helpBody').includes('yank, paste after/before'));
+  vim('j');
+  ok($('#help').hidden, 'any key closes it');
+  eq(modalCursor(), 0, 'and does nothing else');
+  vim(':', 'q', 'Enter');
+});
+
 test('R renames in the modal; enter does not add a line', async () => {
   await fresh();
   keys('j', 'j', 'R');

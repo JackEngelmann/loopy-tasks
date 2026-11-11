@@ -21,7 +21,7 @@ export function renderToday() {
   // line 1: time and title; line 2: the loop and how late / when / how long waiting
   const row = (t, when, cls) => {
     const loop = loopById(t.loopId);
-    const below = [loop && esc(loop.title), when].filter(Boolean).join(' · ');
+    const below = [loop && esc(loop.title), when && `<span class="when">${when}</span>`].filter(Boolean).join(' · ');
     rows.push(taskRow(t, -1, { below, cls }));
   };
 
@@ -70,7 +70,7 @@ function waitedFor(t) {
 function compact(t) {
   const time = timeOf(t);
   return time !== null
-    ? `${isWaiting(t) ? '◷ ' : ''}${fmtTime(time)} ${esc(displayTitle(t))}`
+    ? `${isWaiting(t) ? '◷ ' : ''}<span class="time">${fmtTime(time)}</span> ${esc(displayTitle(t))}`
     : `◷ ${esc(displayTitle(t))}`;
 }
 
@@ -78,9 +78,9 @@ function compact(t) {
 function renderSummary(g, now) {
   const el = document.getElementById('summary');
   const urgent = g.now.length + g.soon.length > 0;
-  const hint = `<span class="hint">s ${ui.sideOpen ? 'hide' : 'details'}</span>`;
+  const hint = `<span class="hint"><kbd>s</kbd> ${ui.sideOpen ? 'hide' : 'details'}</span>`;
   const item = (t, cls, label) =>
-    `<span class="${cls}">${cls === 'now' ? '! ' : isWaiting(t) ? '◷ ' : ''}<span class="time">${fmtTime(timeOf(t))}</span> ${esc(displayTitle(t))} · ${label}</span>`;
+    `<span class="${cls}">${cls === 'now' ? '! ' : isWaiting(t) ? '◷ ' : ''}<span class="time">${fmtTime(timeOf(t))}</span> ${esc(displayTitle(t))} · <span class="when">${label}</span></span>`;
   if (urgent) {
     el.innerHTML = [
       ...g.now.map(t => item(t, 'now', `${duration(now - timeOf(t))} late`)),
@@ -91,8 +91,8 @@ function renderSummary(g, now) {
     const waiting = state.tasks.filter(t => !t.done && isWaiting(t)).length;
     el.innerHTML = [
       `<span>nothing needs you${next ? ` · next <span class="time">${fmtTime(timeOf(next))}</span> ${esc(displayTitle(next))}` : ''}</span>`,
-      g.important.length && `<span><span class="star">★</span> ${g.important.length}</span>`,
-      waiting && `<span class="wait">◷ ${waiting}</span>`,
+      g.important.length && `<span><span class="star">★</span> <span class="count">${g.important.length}</span></span>`,
+      waiting && `<span class="wait">◷ <span class="count">${waiting}</span></span>`,
     ].filter(Boolean).join('') + hint;
   }
   el.classList.toggle('urgent', urgent);

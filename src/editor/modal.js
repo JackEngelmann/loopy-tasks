@@ -52,6 +52,7 @@ function save() {
 }
 
 function close(keep) {
+  ui.help = false;
   if (keep) save();
   leave();
   render();
@@ -122,6 +123,18 @@ input.addEventListener('keydown', e => {
     return close(true);
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;   // copy, select all, ...
+
+  // ? in normal mode shows the help over the editor; any key closes it again
+  if (ui.help) {
+    e.preventDefault();
+    ui.help = false;
+    return render();
+  }
+  if (e.key === '?' && vim.mode === 'normal' && vim.cmd === null && !vim.pending) {
+    e.preventDefault();
+    ui.help = true;
+    return render();
+  }
 
   const before = vim;
   vim = vimKey({ ...vim, text: input.value, cursor: input.selectionStart }, e.key, { singleLine: ui.editing.kind === 'title' });

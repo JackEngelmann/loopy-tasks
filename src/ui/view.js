@@ -25,6 +25,7 @@ export const ui = {
   otherCursor: null,  // cursor of the mode you're not in, restored on T
   picker: null,
   sideOpen: false,    // right column shown as an overlay on narrow windows (s)
+  help: false,        // the ? help shown over the editor (in normal mode it's ui.mode 'help')
 };
 
 export const isEditing = () => ui.mode === 'insert' || ui.mode === 'modal';

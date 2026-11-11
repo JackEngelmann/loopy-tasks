@@ -6,7 +6,8 @@
 //              their own keys, and some keys have different hints per pane)
 //   hint       the keys as listed; label: text after it, may be a function of the context
 //   show       (ctx) => whether to list it; keys work regardless, as long as the mode matches
-//   essential  normal mode lists only these in the hint line; ? shows everything
+//   essential  normal mode and the editor's normal mode list only these in the hint line;
+//              ? shows everything (except `short` rows, which only exist for the hint line)
 //   help       [keys, label] for the ? help when the row has no hint of its own
 //
 // ctx = { pane, templates, kind } — kind is the item being edited ('note', 'title', ...)
@@ -78,14 +79,16 @@ export const COMMANDS = [
   { modes: ['command'], hint: 'esc', label: 'cancel' },
   { modes: ['search'], hint: 'enter', label: 'confirm' },
   { modes: ['search'], hint: 'esc', label: 'cancel' },
+  { modes: ['vim-normal'], hint: 'i', label: 'insert', essential: true, short: true },
   { modes: ['vim-normal'], hint: 'hjkl w/b/e 0/$ gg/G', label: 'move' },
   { modes: ['vim-normal'], hint: 'i/a/I/A/o/O', label: 'insert' },
   { modes: ['vim-normal'], hint: 'x dd D d/c+w/e/b/$/0/iw cc C', label: 'delete/change' },
   { modes: ['vim-normal'], hint: 'yy y+w/e/b/$/0/iw p/P', label: 'yank, paste after/before' },
-  { modes: ['vim-normal'], hint: ':wq/ZZ', label: 'save' },
+  { modes: ['vim-normal'], hint: ':wq/ZZ', label: 'save', essential: true },
   { modes: ['vim-normal'], hint: ':w', label: 'save, stay' },
-  { modes: ['vim-normal'], hint: ':q!', label: 'discard' },
+  { modes: ['vim-normal'], hint: ':q!', label: 'discard', essential: true },
   { modes: ['vim-normal'], hint: 'esc', label: 'close if unchanged' },
+  { modes: ['vim-normal'], hint: '?', label: 'all keys', essential: true, short: true },
   { modes: ['vim-normal'], label: 'empty removes the note', show: isNote },
   { modes: ['vim-insert'], hint: 'esc', label: 'normal mode' },
   { modes: ['vim-insert'], hint: '⌘/ctrl+enter', label: 'save' },
@@ -118,7 +121,7 @@ const labelOf = (c, ctx) => typeof c.label === 'function' ? c.label(ctx) : c.lab
 export function hintsFor(mode, ctx) {
   return COMMANDS
     .filter(c => c.modes.includes(mode) && (c.hint || c.label) && (!c.show || c.show(ctx)))
-    .filter(c => mode !== 'normal' || c.essential)
+    .filter(c => (mode !== 'normal' && mode !== 'vim-normal') || c.essential)
     .map(c => c.hint ? `${kbd(c.hint)} ${labelOf(c, ctx)}` : labelOf(c, ctx))
     .join('  ');
 }
@@ -127,7 +130,7 @@ export function hintsFor(mode, ctx) {
 export function helpSections() {
   const ctx = { pane: 'tasks', templates: false };
   const rows = mode => COMMANDS
-    .filter(c => c.modes.includes(mode) && (c.help || c.hint))
+    .filter(c => c.modes.includes(mode) && (c.help || c.hint) && !c.short)
     .filter(c => mode !== 'normal' || c.keys)   // skip the per-pane display duplicates
     .map(c => c.help ? [kbd(c.help[0]), c.help[1]] : [kbd(c.hint), labelOf(c, ctx) || ''])
     .filter(([, label]) => label);

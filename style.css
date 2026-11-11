@@ -47,7 +47,8 @@
   --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
-.time, .count, .counts, .wait-age, .when, kbd, footer, #summary, .badge {
+.time, .count, .counts, .wait-age, .when, kbd, .badge,
+footer .mode, #searchBox, #cmdBox, #searchInfo {
   font-family: var(--mono);
 }
 
@@ -328,6 +329,8 @@ body.resizing { cursor: col-resize; user-select: none; }
   white-space: nowrap;
 }
 .row.due .row-below { color: var(--stale); }
+/* time labels inside a line take the line's color and size */
+.row-below .when, #summary .when, #summary .count, .compact .time { color: inherit; font-size: inherit; }
 .row.soon-row .row-below { color: var(--text-2); }
 #today .check.wait { color: var(--wait); }
 
@@ -477,5 +480,5 @@ footer .mode.tpl { background: var(--imp); }
 
 /* search hits */
 mark { background: var(--mark); color: inherit; border-radius: 2px; }
-footer kbd { font: inherit; color: var(--text-2); }
+footer kbd { color: var(--text-2); }
 footer .spacer { flex: 1; }
