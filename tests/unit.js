@@ -150,6 +150,8 @@ test('vim: : commands report an effect', () => {
   eq(vim('|x', ['Z', 'Z']).effect, 'save');
   ok(vim('|x', [':', 'f', 'o', 'Enter']).msg.startsWith('E492'));
   eq(vim('|x', [':', 'w', 'Escape']).cmd, null);
+  eq(vim('|x', ['Escape']).effect, 'escape');
+  eq(vim('|x', ['d', 'Escape']).effect, null, 'esc first cancels a pending command');
 });
 
 // ── Util ──────────────────────────────────────────────────────────────────────

@@ -71,6 +71,11 @@ function setCursor(p, mode = vim.mode) {
 }
 
 function runEffect(effect) {
+  if (effect === 'escape') {
+    // esc closes when there's nothing to lose; with changes use :wq or :q!
+    if (!changed()) close(false);
+    return;
+  }
   if (effect === 'save') return close(true);
   if (effect === 'discard' || (effect === 'quit' && !changed())) return close(false);
   if (effect === 'quit') vim.msg = 'E37: no write since last change (add ! to override)';

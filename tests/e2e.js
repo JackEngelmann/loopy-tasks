@@ -293,7 +293,20 @@ test(':w keeps editing, :q refuses with changes, :q! discards', async () => {
   eq(loop('Website redesign').note, 'one');
 });
 
-test('esc in normal mode does not close; ZZ saves; empty note removes it', async () => {
+test('esc closes the editor when nothing changed', async () => {
+  await fresh();
+  keys('j', 'm');
+  vim('d', 'Escape');
+  ok(modalOpen(), 'the first esc only cancels the pending d');
+  vim('Escape');
+  ok(!modalOpen());
+  keys('R');
+  vim('i'); insert('x'); vim('Escape');
+  vim('x', 'Escape');
+  ok(!modalOpen(), 'changed back to the original counts as unchanged');
+});
+
+test('esc with changes does not close; ZZ saves; empty note removes it', async () => {
   await fresh();
   keys('j', 'm');
   vim('i'); insert('x');
@@ -349,7 +362,7 @@ test('vim edits', async () => {
     ['one two', 0, ['d', 'Escape', 'w'], 'one |two'],
   ];
   for (const [value, cursor, ks, expected] of cases) {
-    vim('Escape');
+    if (text('#mode').endsWith('INSERT')) vim('Escape');   // back to normal mode after c, o, A
     modalWith(value, cursor);
     vim(...ks);
     eq(withCursor(), expected, `${JSON.stringify(value)} + ${ks.join('')}`);

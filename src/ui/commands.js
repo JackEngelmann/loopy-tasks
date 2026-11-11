@@ -73,6 +73,7 @@ export const COMMANDS = [
   { modes: ['vim-normal'], hint: ':wq/ZZ', label: 'save' },
   { modes: ['vim-normal'], hint: ':w', label: 'save, stay' },
   { modes: ['vim-normal'], hint: ':q!', label: 'discard' },
+  { modes: ['vim-normal'], hint: 'esc', label: 'close if unchanged' },
   { modes: ['vim-normal'], label: 'empty removes the note', show: isNote },
   { modes: ['vim-insert'], hint: 'esc', label: 'normal mode' },
   { modes: ['vim-insert'], hint: '⌘/ctrl+enter', label: 'save' },

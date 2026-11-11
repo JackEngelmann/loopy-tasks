@@ -7,7 +7,8 @@
 //   cmd      the ":" command being typed (null when none); msg: its result
 // The result also has
 //   handled  false when the browser should do its normal thing (typing in insert mode)
-//   effect   'write' (:w), 'save' (:wq, :x, ZZ), 'quit' (:q), 'discard' (:q!) or null
+//   effect   'write' (:w), 'save' (:wq, :x, ZZ), 'quit' (:q), 'discard' (:q!),
+//            'escape' (esc in normal mode with nothing pending) or null
 // No undo inside the editor.
 
 export const initialVim = text => ({
@@ -85,6 +86,7 @@ export function vimKey(prev, key, { singleLine = false } = {}) {
   if (s.cmd !== null) return commandKey(s, key);
   s.msg = '';
   if (key === 'Escape') {
+    if (!s.pending && !s.count) s.effect = 'escape';
     s.pending = s.count = '';
     s.opCount = 1;
     return s;
