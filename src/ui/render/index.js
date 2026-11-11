@@ -1,6 +1,6 @@
 // Everything is redrawn from state after each change; the lists are small.
 
-import { clamp } from '../view.js';
+import { ui, clamp } from '../view.js';
 import { dropStaleSearch, renderSearchBox } from '../../features/search.js';
 import { renderPicker } from '../../features/templates.js';
 import { renderNotifyBtn } from '../../features/reminders.js';
@@ -25,6 +25,7 @@ export function render() {
   renderSearchBox();
   renderCmdBox();
   renderHelp();
+  document.getElementById('backdrop').hidden = !['modal', 'picker', 'help'].includes(ui.mode);
   renderNotifyBtn();
 
   document.querySelectorAll('.row.sel').forEach(el => el.scrollIntoView({ block: 'nearest' }));

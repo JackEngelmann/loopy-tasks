@@ -168,6 +168,11 @@ main {
 .pane.focused .pane-head { color: var(--sel); }
 /* overlays keep a border so they stand off the panes behind them */
 #picker, #help, #noteBox, body.side-open .side { border: 1px solid var(--border); }
+/* the editor, picker and help sit on a veil, with a focus-colored outline */
+#backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 9; }
+#picker, #help, #noteBox { border-color: color-mix(in srgb, var(--sel) 55%, transparent); }
+/* the status bar stays readable above the veil */
+footer { position: relative; z-index: 10; }
 
 .pane-head {
   padding: 9px 12px 6px;
@@ -449,8 +454,13 @@ footer .mode.tpl { background: var(--imp); }
 #noteBox.normal #noteMode { color: var(--sel); }
 /* the selected character stands in for vim's block cursor */
 #noteBox.normal #noteInput { caret-color: transparent; }
-/* on an empty line there's no character to select, so show the caret instead */
-#noteBox.normal #noteInput.no-char { caret-color: var(--sel); }
+/* on an empty line there's no character to select: modal.js draws the block here */
+#noteCursor {
+  position: absolute;
+  width: .6em;
+  background: var(--sel);
+  pointer-events: none;
+}
 #noteBox.normal #noteInput::selection { background: var(--sel); color: var(--sel-text); }
 #noteInput {
   height: min(320px, 50vh);

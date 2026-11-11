@@ -57,18 +57,46 @@ function close(keep) {
   render();
 }
 
-// show the cursor as a one-character selection in normal mode
+// show the cursor as a one-character selection in normal mode; on an empty line there's
+// no character to select, so a drawn block stands in (a thin caret would look like insert mode)
 function setCursor(p, mode = vim.mode) {
   const v = input.value;
   if (mode === 'normal') {
     p = clampNormal(v, p);
     const onChar = !!v[p] && v[p] !== '\n';
-    input.classList.toggle('no-char', !onChar);
     input.setSelectionRange(p, onChar ? p + 1 : p);
+    placeBlock(onChar ? null : p);
   } else {
     input.setSelectionRange(p, p);
+    placeBlock(null);
   }
 }
+
+const block = document.getElementById('noteCursor');
+
+// where position p is drawn: a hidden copy of the textarea with a marker at p
+function placeBlock(p) {
+  block.hidden = p === null;
+  if (p === null) return;
+  const style = getComputedStyle(input);
+  const mirror = document.createElement('div');
+  for (const prop of ['boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+    'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing']) mirror.style[prop] = style[prop];
+  Object.assign(mirror.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', borderStyle: 'solid' });
+  mirror.textContent = input.value.slice(0, p);
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b';
+  mirror.append(marker);
+  box.append(mirror);
+  Object.assign(block.style, {
+    top: `${input.offsetTop + marker.offsetTop - input.scrollTop}px`,
+    left: `${input.offsetLeft + marker.offsetLeft - input.scrollLeft}px`,
+    height: style.lineHeight,
+  });
+  mirror.remove();
+}
+input.addEventListener('scroll', () => { if (!block.hidden) setCursor(input.selectionStart); });
 
 function runEffect(effect) {
   if (effect === 'escape') {
@@ -118,10 +146,13 @@ input.addEventListener('blur', () => {
 export function renderModal() {
   const open = ui.mode === 'modal';
   box.hidden = !open;
+  if (!open) block.hidden = true;
   box.classList.toggle('normal', open && vim.mode === 'normal');
   box.classList.toggle('title', open && ui.editing.kind === 'title');
   const label = document.getElementById('noteMode');
   label.textContent = vim.cmd !== null ? `:${vim.cmd}▏` : vim.msg || vim.mode.toUpperCase();
   label.classList.toggle('error', vim.msg.startsWith('E'));
   if (open && document.activeElement !== input) input.focus();
+  // the block can only be measured once the box is visible
+  if (open && vim.mode === 'normal') setCursor(input.selectionStart);
 }

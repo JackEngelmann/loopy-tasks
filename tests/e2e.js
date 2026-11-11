@@ -326,6 +326,24 @@ test('M opens the note editor too', async () => {
   eq(text('#mode'), 'NOTE NORMAL');
 });
 
+test('normal mode shows a block cursor on an empty line too', async () => {
+  await fresh();
+  keys('j', 'j', 'm');
+  const block = $('#noteCursor');
+  ok(!block.hidden, 'empty note: the drawn block');
+  const area = note().getBoundingClientRect(), b = block.getBoundingClientRect();
+  ok(b.top >= area.top && b.left >= area.left && b.bottom <= area.bottom, 'inside the text box');
+  vim('i'); insert('text\n\nmore'); vim('Escape');
+  ok(block.hidden, 'on a character: the selection is the block');
+  vim('k');
+  ok(!block.hidden, 'empty line');
+  ok(block.getBoundingClientRect().top > b.top, 'on the second line');
+  vim('i');
+  ok(block.hidden, 'insert mode: the normal caret');
+  vim('Escape', ':', 'q', '!', 'Enter');
+  ok(block.hidden);
+});
+
 test(':w keeps editing, :q refuses with changes, :q! discards', async () => {
   await fresh();
   keys('j', 'j', 'm');
