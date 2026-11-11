@@ -42,14 +42,16 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
   const name = ui.mode === 'insert' && ed.kind === 'rename' && ed.id === t.id
     ? editInput(t.title)
     : `<span class="name">${hl(displayTitle(t))}</span>`;
-  const check = t.done ? '✓' : isWaiting(t) ? '◷' : next ? '▸' : '·';
+  // only meaningful markers; plain tasks leave the column empty
+  const check = t.done ? '✓' : isWaiting(t) ? '◷' : due ? '!' : next ? '▸' : '';
   const timeEl = time !== null ? `<span class="time">${hl(fmtTime(time))}</span>` : '';
   const star = !t.done && isImportant(t) ? `<span class="star">★</span>` : '';
   // how late it is, else how long it's been waiting
   const when = label ?? (due ? `${duration(now - time)} late` : null);
+  // (a waiting task with a time shows that time instead; Today has the age)
   const tail = below !== undefined ? (below ? `<div class="row-below">${below}</div>` : '')
     : when ? `<span class="when">${when}</span>`
-    : !t.done && t.waitingSince ? `<span class="wait-age">${age(t.waitingSince)}</span>` : '';
+    : !t.done && t.waitingSince && time === null ? `<span class="wait-age">${age(t.waitingSince)}</span>` : '';
   // in full while the task is selected
   const note = notes ? noteLine(t, 'task-note', selected) : t.note ? '<span class="note-mark">✎</span>' : '';
   return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${star}${timeEl}${tag}${name}${tail}${note}</li>`;

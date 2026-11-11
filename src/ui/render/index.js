@@ -10,6 +10,8 @@ import { renderLoops } from './loops.js';
 import { renderTasks } from './tasks.js';
 import { renderToday } from './today.js';
 import { renderChrome } from './chrome.js';
+import { renderHelp } from './help.js';
+import { renderCmdBox } from '../../features/cmdline.js';
 
 export function render() {
   clamp();
@@ -21,6 +23,8 @@ export function render() {
   renderToday();
   renderChrome();
   renderSearchBox();
+  renderCmdBox();
+  renderHelp();
   renderNotifyBtn();
 
   document.querySelectorAll('.row.sel').forEach(el => el.scrollIntoView({ block: 'nearest' }));

@@ -12,26 +12,24 @@
   <span id="crumb"></span>
   <span class="badge" id="nowBadge" title="Things whose time has come" hidden></span>
   <button class="file-btn" id="notifyBtn"></button>
-  <button class="file-btn" id="exportBtn" title="Download all loops and tasks as JSON">export</button>
-  <button class="file-btn" id="importBtn" title="Replace all data with a JSON export">import</button>
   <input type="file" id="importFile" accept=".json,application/json" hidden>
 </header>
 <div id="summary" title="Show what needs you today (s)"></div>
 
 <main>
   <section class="pane" id="loopsPane">
-    <div class="pane-head"><span id="loopsTitle">Loops</span><span id="loopsMeta"></span></div>
+    <div class="pane-head"><span id="loopsTitle">Loops</span></div>
     <ul id="loops"></ul>
     <div class="splitter" id="loopsSplitter" title="Drag to resize · double-click to reset"></div>
   </section>
   <section class="pane" id="tasksPane">
-    <div class="pane-head"><span id="tasksTitle">Tasks</span><span id="tasksMeta"></span></div>
+    <div class="pane-head"><span id="tasksTitle">Tasks</span></div>
     <ul id="tasks"></ul>
     <div class="splitter" id="sideSplitter" title="Drag to resize · double-click to reset"></div>
   </section>
   <div class="side">
     <section class="pane" id="todayPane">
-      <div class="pane-head"><span>Today</span><span id="todayClock"></span></div>
+      <div class="pane-head"><span>Today</span></div>
       <ul id="today"></ul>
     </section>
   </div>
@@ -47,10 +45,16 @@
   <textarea id="noteInput" spellcheck="false"></textarea>
 </div>
 
+<div class="pane focused" id="help" hidden>
+  <div class="pane-head"><span>Keys</span><span>esc to close</span></div>
+  <div id="helpBody"></div>
+</div>
+
 <footer id="status">
   <span class="mode tpl" id="tplBadge" hidden>TEMPLATES</span>
   <span class="mode" id="mode"></span>
   <span id="searchBox" hidden>/<input id="searchInput" autocomplete="off" spellcheck="false"></span>
+  <span id="cmdBox" hidden>:<input id="cmdInput" autocomplete="off" spellcheck="false"></span>
   <span id="searchInfo"></span>
   <span class="clip" id="clip"></span>
   <span class="flash" id="flash"></span>

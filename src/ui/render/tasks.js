@@ -17,7 +17,7 @@ export function renderTasks() {
     marks: !ui.templates,
     notes: true,
   }));
-  if (adding) rows.splice(ui.editing.at, 0, `<li class="row sel"><span class="check">·</span>${editInput('')}</li>`);
+  if (adding) rows.splice(ui.editing.at, 0, `<li class="row sel"><span class="check"></span>${editInput('')}</li>`);
   if (!rows.length) {
     rows.push(
       loop.kind === 'none' ? `<li class="empty">Create a template in the left pane first.</li>`
@@ -32,5 +32,4 @@ export function renderTasks() {
   document.getElementById('tasks').innerHTML = rows.join('');
 
   document.getElementById('tasksTitle').textContent = loop.title;
-  document.getElementById('tasksMeta').textContent = ui.templates ? `${ts.length} tasks` : `${ts.length} open`;
 }

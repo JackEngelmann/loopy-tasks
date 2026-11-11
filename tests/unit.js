@@ -79,7 +79,6 @@ test('queries: attention groups by urgency, each task once', () => {
   eq(titles(g.soon), ['soon 10:20', 'check back 10:25 @w']);
   eq(titles(g.important), ['important @i']);
   eq(titles(g.later), ['later 14:00', 'waiting long @w', 'waiting short @w']);
-  eq(g.plan.map(l => l.title), ['empty loop']);
 });
 
 test('queries: due reminders', () => {

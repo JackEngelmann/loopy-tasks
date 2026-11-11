@@ -41,8 +41,18 @@
   }
 }
 
+/* titles and notes in a proportional font; times, counts, keys and the status bar in
+   monospace (font-variant-numeric keeps digits aligned) */
+:root {
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.time, .count, .counts, .wait-age, .when, kbd, footer, #summary, .badge {
+  font-family: var(--mono);
+}
+
 body {
-  font: 13.5px/1.5 ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font: 14px/1.5 var(--sans);
   background: var(--bg);
   color: var(--text);
   height: 100vh;
@@ -101,7 +111,7 @@ main {
   cursor: pointer;
 }
 #summary .wait { color: var(--wait); }
-#summary .time { color: var(--tag); }
+#summary .time { color: var(--text); }
 #summary .hint { color: var(--text-3); margin-left: auto; }
 #summary.urgent {
   margin: 0 8px 8px;
@@ -112,7 +122,7 @@ main {
   border: 1px solid color-mix(in srgb, var(--stale) 50%, transparent);
   color: var(--stale);
 }
-#summary.urgent .soon, #summary.urgent .soon .time { color: var(--tag); }
+#summary.urgent .soon, #summary.urgent .soon .time { color: var(--text); }
 #summary.urgent .now .time { color: var(--stale); font-weight: 600; }
 
 .badge {
@@ -146,26 +156,30 @@ main {
 
 .pane {
   background: var(--pane);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
 }
-.pane.focused { border-color: var(--sel); }
+/* no frames: the focused pane gets a faint ring (visible even when it's empty)
+   and a blue header */
+.pane.focused { box-shadow: 0 0 0 1px color-mix(in srgb, var(--sel) 45%, transparent); }
+.pane.focused .pane-head { color: var(--sel); }
+/* overlays keep a border so they stand off the panes behind them */
+#picker, #help, #noteBox, body.side-open .side { border: 1px solid var(--border); }
 
 .pane-head {
-  padding: 6px 10px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: var(--text-3);
-  border-bottom: 1px solid var(--border);
+  padding: 9px 12px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
 }
+/* overlays with a title and a status keep them apart */
+#noteBox .pane-head, #help .pane-head { justify-content: space-between; }
 .star { color: var(--imp); }
 
 ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
@@ -192,6 +206,8 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 .loop-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; min-width: 0; }
 .loop-line .name { flex: 0 1 auto; font-weight: 600; }
 .loop-line .count { margin-left: auto; }
+.loop-line .counts + .count { margin-left: 6px; min-width: 2ch; text-align: right; }
+.loop-line .counts { color: var(--wait); }
 .counts { margin-left: auto; color: var(--text-3); font-size: 11px; }
 .loop-next {
   display: flex;
@@ -202,6 +218,7 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 }
 .loop-next .name { font-weight: normal; }
 /* notes (m): where you left off, with their age */
+.loop-note, .task-note, .note-block { font-style: italic; }
 .loop-note, .task-note {
   font-size: 11px;
   color: var(--text-3);
@@ -225,7 +242,6 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 }
 /* long loop notes are cut off; m shows all of it */
 .note-block .clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
-.row.stale { background: var(--stale-bg); }
 .row.stale .name, .row.stale .loop-next { color: var(--stale); }
 .row.waiting-loop .name, .row.waiting-loop .loop-next { color: var(--wait); }
 
@@ -257,17 +273,17 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 body.resizing { cursor: col-resize; user-select: none; }
 
 /* selection: solid bar in focused pane, faint in the others */
-.pane:not(.focused) .row.sel { background: var(--sel-dim); }
-.pane.focused .row.sel { background: var(--sel); }
-.pane.focused .row.sel, .pane.focused .row.sel * { color: var(--sel-text) !important; }
+/* selection: a tint and an accent bar; the row keeps its own colors */
+.row.sel { box-shadow: inset 2px 0 0 var(--border); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.pane.focused .row.sel { box-shadow: inset 3px 0 0 var(--sel); background: color-mix(in srgb, var(--sel) 16%, transparent); }
 /* the edit box keeps its own background, so it needs normal text color */
 .pane.focused .row.sel .edit { color: var(--text) !important; }
 
 /* tasks */
-.check { color: var(--text-3); width: 1ch; }
+.check { color: var(--text-3); width: 1ch; flex-shrink: 0; text-align: center; }
 .row.done .name { color: var(--text-3); text-decoration: line-through; }
 .row.cut .name { color: var(--cut); }
-.tag { color: var(--tag); font-size: 12px; }
+.tag { color: var(--text-3); font-size: 12px; }
 .tag.none { color: var(--text-3); }
 
 /* Today panel: groups by urgency */
@@ -280,12 +296,11 @@ body.resizing { cursor: col-resize; user-select: none; }
   justify-content: space-between;
 }
 .tier.now { color: var(--stale); }
-.tier.soon { color: var(--tag); }
+.tier.soon { color: var(--text); }
 .tier.important { color: var(--imp); }
-.tier.later, .tier.plan { color: var(--text-3); }
+.tier.later { color: var(--text-3); }
 .row.quiet { opacity: .6; }
 .compact { padding: 2px 10px 2px 28px; font-size: 12px; color: var(--text-3); }
-.plan-line { padding: 2px 10px 2px 28px; font-size: 12px; color: var(--stale); }
 .calm {
   margin: 10px;
   padding: 10px;
@@ -308,17 +323,17 @@ body.resizing { cursor: col-resize; user-select: none; }
   white-space: nowrap;
 }
 .row.due .row-below { color: var(--stale); }
-.row.soon-row .row-below { color: var(--tag); }
+.row.soon-row .row-below { color: var(--text-2); }
 #today .check.wait { color: var(--wait); }
 
-.time { color: var(--tag); font-variant-numeric: tabular-nums; }
+.time { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 /* past and not done: needs attention, wherever it's shown */
 .row.due { background: var(--stale-bg); }
 .row.due .time, .row.due .name, .row.due .when, .row.due .check { color: var(--stale); }
 .row.due .time, .row.due .name { font-weight: 600; }
 
 /* the next action of a loop stands out; the rest of its tasks recede */
-.row.next .check { color: var(--sel); }
+.row.next .check { color: var(--text); }
 .row.backlog .name { color: var(--text-2); }
 .row.backlog.due .name { color: var(--stale); }
 
@@ -354,8 +369,8 @@ footer .mode {
   font-weight: 600;
 }
 footer .clip { color: var(--cut); }
-#searchBox { color: var(--text); }
-#searchBox input {
+#searchBox, #cmdBox { color: var(--text); }
+#searchBox input, #cmdBox input {
   width: 28ch;
   font: inherit;
   color: var(--text);
@@ -368,10 +383,42 @@ footer .clip { color: var(--cut); }
 
 /* template mode: tinted panes and a badge so it's never mistaken for real loops */
 footer .mode.tpl { background: var(--imp); }
-.template-mode #loopsPane, .template-mode #tasksPane { border-style: dashed; }
-.template-mode .pane.focused { border-color: var(--imp); }
-.template-mode .pane.focused .row.sel { background: var(--imp); }
+.template-mode #loopsPane, .template-mode #tasksPane { outline: 1px dashed color-mix(in srgb, var(--imp) 50%, transparent); }
+.template-mode .pane.focused .pane-head { color: var(--imp); }
+.template-mode .pane.focused .row.sel { box-shadow: inset 3px 0 0 var(--imp); background: color-mix(in srgb, var(--imp) 16%, transparent); }
 .template-mode #loopsTitle { color: var(--imp); }
+
+/* ? help: every key */
+#help {
+  position: fixed;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 32px));
+  max-height: 84vh;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  z-index: 10;
+}
+#helpBody {
+  overflow-y: auto;
+  min-height: 0;   /* lets it scroll inside the pane on short windows */
+  padding: 6px 14px 12px;
+  columns: 2 300px;
+  column-gap: 28px;
+  font-size: 12px;
+}
+#helpBody section { break-inside: avoid; margin-bottom: 10px; }
+#helpBody h3 {
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 8px 0 4px;
+}
+#helpBody dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; }
+#helpBody dt kbd { color: var(--text); }
+#helpBody dd { color: var(--text-2); }
 
 /* template picker (t) */
 #picker {

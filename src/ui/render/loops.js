@@ -1,7 +1,6 @@
 // Left pane: All and Standalone, then the loops (or the templates in template mode).
 
-import { state } from '../../model/store.js';
-import { openTasks, doable, nextOf, loopStatus } from '../../model/queries.js';
+import { openTasks, nextOf, loopStatus } from '../../model/queries.js';
 import { isWaiting, isImportant, displayTitle } from '../../model/markers.js';
 import { ui, db, virtuals, tasksOf, VIRTUAL } from '../view.js';
 import { highlight } from '../../features/search.js';
@@ -24,7 +23,7 @@ export function renderLoops() {
     const first = ts[0];
     return `<li class="${cls}" data-i="${i}">
       <div class="loop-line">${name}</div>
-      <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : 'No standalone tasks'}</span>${ts.length > 1 ? `<span class="counts">+${ts.length - 1}</span>` : ''}</div>
+      <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : 'No standalone tasks'}</span></div>
     </li>`;
   });
 
@@ -33,9 +32,8 @@ export function renderLoops() {
     const open = openTasks(d, l.id);
     const next = nextOf(d, l.id);
     const status = loopStatus(d, l);
-    // waiting count by the title; "+N" = doable tasks queued after the next action
+    // waiting count, then all open tasks (like All and Standalone)
     const waiting = open.filter(isWaiting).length;
-    const more = Math.max(0, doable(d, l.id).length - 1);
     const counts = waiting ? `◷ ${waiting}` : '';
     const nextLine = next ? `▸ ${esc(displayTitle(next))}`
       : ui.templates ? 'Empty template'
@@ -50,8 +48,8 @@ export function renderLoops() {
       : `<span class="name">${highlight(l.title, 'loops')}</span>`;
     const star = open.some(isImportant) ? `<span class="star">★</span>` : '';
     rows.push(`<li class="${cls}" data-i="${i}">
-      <div class="loop-line">${name}${star}<span class="counts">${counts}</span></div>
-      <div class="loop-next"><span class="name">${nextLine}</span>${more ? `<span class="counts">+${more}</span>` : ''}</div>
+      <div class="loop-line">${name}${star}<span class="counts">${counts}</span><span class="count">${open.length}</span></div>
+      <div class="loop-next"><span class="name">${nextLine}</span></div>
       ${noteLine(l, 'loop-note')}
     </li>`);
   });
@@ -59,10 +57,4 @@ export function renderLoops() {
   if (!rows.length) rows.push(`<li class="empty">No templates yet. Press o to create one.</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
   document.getElementById('loopsTitle').textContent = ui.templates ? 'Templates' : 'Loops';
-
-  const stale = state.loops.filter(l => loopStatus(state, l) === 'stale').length;
-  const waiting = state.loops.filter(l => loopStatus(state, l) === 'waiting').length;
-  document.getElementById('loopsMeta').textContent = ui.templates
-    ? `${state.templates.loops.length}`
-    : [stale && `! ${stale}`, waiting && `◷ ${waiting}`].filter(Boolean).join('  ');
 }

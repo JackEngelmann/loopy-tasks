@@ -17,7 +17,7 @@ export function renderToday() {
   const now = nowMinutes();
   const g = attention(state, now);
   const rows = [];
-  const tier = (cls, title, n) => rows.push(`<li class="tier ${cls}"><span>${title}</span><span>${n}</span></li>`);
+  const tier = (cls, title) => rows.push(`<li class="tier ${cls}">${title}</li>`);
   // line 1: time and title; line 2: the loop and how late / when / how long waiting
   const row = (t, when, cls) => {
     const loop = loopById(t.loopId);
@@ -26,11 +26,11 @@ export function renderToday() {
   };
 
   if (g.now.length) {
-    tier('now', 'Now', g.now.length);
+    tier('now', 'Now');
     g.now.forEach(t => row(t, `${duration(now - timeOf(t))} late`));
   }
   if (g.soon.length) {
-    tier('soon', 'Soon', g.soon.length);
+    tier('soon', 'Soon');
     g.soon.forEach(t => {
       const inMin = `in ${duration(timeOf(t) - now)}`;
       row(t, isWaiting(t) ? `check back ${inMin}` : inMin, 'soon-row');
@@ -43,21 +43,16 @@ export function renderToday() {
       : ''}</li>`);
   }
   if (g.important.length) {
-    tier('important', 'Important', g.important.length);
+    tier('important', 'Important');
     g.important.forEach(t => row(t, waitedFor(t)));
   }
   if (g.later.length) {
-    tier('later', 'Later', g.later.length);
+    tier('later', 'Later');
     if (g.later.length <= LATER_ROWS) g.later.forEach(t => row(t, waitedFor(t), 'quiet'));
     else rows.push(`<li class="compact">${g.later.map(compact).join(' · ')}</li>`);
   }
-  if (g.plan.length) {
-    tier('plan', 'Plan', g.plan.length);
-    g.plan.forEach(l => rows.push(`<li class="plan-line">${esc(l.title)} has no next action</li>`));
-  }
 
   document.getElementById('today').innerHTML = rows.join('');
-  document.getElementById('todayClock').textContent = fmtTime(now);
   const badge = document.getElementById('nowBadge');
   badge.hidden = !g.now.length;
   badge.textContent = `! ${g.now.length}`;

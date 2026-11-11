@@ -31,7 +31,7 @@ and open <http://localhost:8000>. Reminders (system notifications for timed task
 
 ## Keys
 
-The bottom line always shows the keys for where you are. In short:
+The bottom line shows the main keys for where you are; `?` lists all of them. In short:
 
 | Key             | Action                                          |
 |-----------------|-------------------------------------------------|
@@ -49,6 +49,8 @@ The bottom line always shows the keys for where you are. In short:
 | `t` / `T`       | new loop from a template / edit templates       |
 | `s`             | show the right column (narrow windows)          |
 | `u`             | undo                                            |
+| `?`             | all keys                                        |
+| `:export` / `:import` | download all data / replace it from a file |
 
 The note editor opens in normal mode with a few vim keys (motions, `d`/`c` with `w e b $ 0 iw`, `dd`, `cc`, `C`, counts) and `:w`, `:wq`, `:x`, `:q`, `:q!`.
 

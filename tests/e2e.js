@@ -31,6 +31,7 @@ const text = sel => $(sel).textContent.trim();
 const data = () => JSON.parse(w.localStorage.getItem(STORAGE_KEY));
 const task = title => data().tasks.find(t => t.title.startsWith(title));
 const loop = title => data().loops.find(l => l.title === title);
+const focused = pane => $(`#${pane}Pane`).classList.contains('focused');
 const selected = pane => $(`#${pane} .row.sel`)?.textContent.replace(/\s+/g, ' ').trim();
 
 // inline input (o, O, r)
@@ -75,7 +76,7 @@ test('seed data shows All, Standalone and four loops', async () => {
   await fresh();
   eq($$('#loops .row').length, 6);
   eq(selected('loops').startsWith('All'), true);
-  eq(text('#tasksMeta'), '11 open');
+  eq($$('#tasks .row').length, 11);
 });
 
 test('j selects a loop, l moves into its tasks', async () => {
@@ -84,11 +85,11 @@ test('j selects a loop, l moves into its tasks', async () => {
   ok(selected('loops').startsWith('Website redesign'));
   eq(text('#tasksTitle'), 'Website redesign');
   keys('l');
-  eq(text('#mode'), 'TASKS');
+  ok(focused('tasks'));
   ok(selected('tasks').includes('Sketch new landing page'));
-  ok(text('#crumb').endsWith('Sketch new landing page'));
   keys('h');
-  eq(text('#mode'), 'LOOPS');
+  ok(focused('loops'));
+  ok($('#mode').hidden, 'no mode label in normal mode');
 });
 
 test('g / G jump to first and last', async () => {
@@ -268,7 +269,7 @@ test('/ jumps to matches, n cycles, esc clears', async () => {
   ok(selected('tasks').includes('review'));
   const first = selected('tasks');
   input.dispatchEvent(event('Enter'));
-  eq(text('#mode'), 'TASKS');
+  ok($('#mode').hidden);
   ok(text('#searchInfo').startsWith('/review'));
   keys('n');
   ok(selected('tasks') !== first, 'n moves to the next match');
@@ -298,7 +299,7 @@ test('t creates a loop from a template', async () => {
   ok($('#picker').hidden);
   eq(data().loops[1].title, 'Daily planning');
   eq(data().tasks.filter(t => t.loopId === data().loops[1].id).length, 4);
-  eq(text('#mode'), 'TASKS');
+  ok(focused('tasks'));
 });
 
 // ── Modal editor ──────────────────────────────────────────────────────────────
@@ -434,14 +435,49 @@ test('R renames in the modal; enter does not add a line', async () => {
 
 // ── Chrome ────────────────────────────────────────────────────────────────────
 
-test('hint line follows the pane', async () => {
+test('hint line shows the essentials for the pane', async () => {
   await fresh();
   ok(text('#hints').includes('t new from template'));
+  ok(text('#hints').endsWith('? all keys'));
+  ok(!text('#hints').includes('undo'), 'the rest is in ?');
   keys('l');
   ok(text('#hints').includes('space done'));
   ok(!text('#hints').includes('t new from template'));
   keys('T');
   ok(text('#hints').startsWith('T back to loops'));
+  eq(text('#crumb'), 'editing templates');
+});
+
+test('? lists every key; esc closes it', async () => {
+  await fresh();
+  keys('?');
+  ok(!$('#help').hidden);
+  eq(text('#mode'), 'HELP');
+  for (const label of ['undo', 'rename in the editor', 'first/last', 'download all data as a file', 'save, stay']) {
+    ok(text('#helpBody').includes(label), label);
+  }
+  keys('j');
+  ok(!$('#help').hidden, 'other keys do nothing while it is open');
+  ok(selected('loops').startsWith('All'));
+  keys('Escape');
+  ok($('#help').hidden);
+});
+
+test(': opens the command line; unknown commands say so', async () => {
+  await fresh();
+  keys(':');
+  ok(!$('#cmdBox').hidden);
+  eq(text('#mode'), 'COMMAND');
+  ok(text('#hints').includes(':export'));
+  const input = $('#cmdInput');
+  input.value = 'nope';
+  input.dispatchEvent(event('Enter'));
+  ok($('#cmdBox').hidden);
+  ok(text('#flash').startsWith('not a command: nope'));
+  keys(':');
+  $('#cmdInput').dispatchEvent(event('Escape'));
+  ok($('#cmdBox').hidden);
+  eq(text('#flash'), '');
 });
 
 test('narrow window: summary line, s toggles the side overlay', async () => {

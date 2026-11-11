@@ -33,7 +33,7 @@ export const timedTasks = tasks => tasks.filter(t => !t.done && timeOf(t) !== nu
 //   soon       its time is within SOON minutes
 //   important  marked @i
 //   later      timed later today, or waiting without a check-back time (longest first)
-// plus `plan`: loops without a next action. Times have no date: everything is today.
+// Times have no date: everything is today.
 
 export const SOON = 30;
 
@@ -52,7 +52,6 @@ export function attention(d, now) {
     ...open.filter(t => isWaiting(t) && timeOf(t) === null && !taken.has(t))
       .sort((a, b) => (a.waitingSince || 0) - (b.waitingSince || 0)),
   ];
-  groups.plan = d.loops.filter(l => loopStatus(d, l) === 'stale');
   return groups;
 }
 

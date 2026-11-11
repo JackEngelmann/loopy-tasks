@@ -1,10 +1,9 @@
 // Header breadcrumb and the status bar: mode, clipboard, flash and the key hints.
 
 import { displayTitle } from '../../model/markers.js';
-import { ui, PANES, db, currentLoop, selTask } from '../view.js';
+import { ui, PANES, db } from '../view.js';
 import { hintsFor } from '../commands.js';
 import { vim } from '../../editor/modal.js';
-import { esc } from '../../util.js';
 
 // the modal editor has its own vim modes, each with its own hints
 const hintMode = () => ui.mode !== 'modal' ? ui.mode
@@ -14,20 +13,21 @@ function modeLabel() {
   if (ui.mode === 'modal') {
     return `${ui.editing.kind === 'note' ? 'NOTE' : 'RENAME'} ${vim.cmd !== null ? 'COMMAND' : vim.mode.toUpperCase()}`;
   }
-  return { insert: 'INSERT', search: 'SEARCH', picker: 'TEMPLATE' }[ui.mode] || ui.focus.toUpperCase();
+  // normal mode needs no label: the focused pane has the highlighted border
+  return { insert: 'INSERT', search: 'SEARCH', picker: 'TEMPLATE', command: 'COMMAND', help: 'HELP' }[ui.mode] || '';
 }
 
 export function renderChrome() {
   PANES.forEach(p => document.getElementById(p + 'Pane').classList.toggle('focused', ui.focus === p));
   document.body.classList.toggle('template-mode', ui.templates);
 
-  const loop = currentLoop();
-  const task = selTask();
-  document.getElementById('crumb').innerHTML =
-    `${ui.templates ? 'templates' : 'loops'} / <b>${esc(loop.title)}</b>` + (task ? ` / ${esc(displayTitle(task))}` : '');
+  // the selection shows in the panes; the header only warns that you're editing templates
+  document.getElementById('crumb').textContent = ui.templates ? 'editing templates' : '';
 
   const cut = db().tasks.find(t => t.id === ui.cutId);
-  document.getElementById('mode').textContent = modeLabel();
+  const mode = document.getElementById('mode');
+  mode.textContent = modeLabel();
+  mode.hidden = !mode.textContent;
   document.getElementById('tplBadge').hidden = !ui.templates;
   document.getElementById('clip').textContent = cut ? `cut: ${displayTitle(cut)}` : '';
   const flash = document.getElementById('flash');

@@ -16,9 +16,9 @@ import { initSplitter } from './ui/splitter.js';
 
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (ui.mode !== 'normal' && ui.mode !== 'picker') return;
+  if (!['normal', 'picker', 'help'].includes(ui.mode)) return;
   const run = commandFor(ui.mode, e.key);
-  if (ui.mode === 'picker') e.preventDefault();   // the picker takes every key while it's open
+  if (ui.mode !== 'normal') e.preventDefault();   // the picker and the help take every key while open
   if (!run) return;
   e.preventDefault();
   if (ui.mode === 'normal') ui.flash = null;

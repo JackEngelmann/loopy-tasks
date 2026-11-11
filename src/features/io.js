@@ -1,4 +1,4 @@
-// Export everything as a JSON file, import one back (replacing everything; u undoes it).
+// :export downloads everything as a JSON file, :import reads one back (replacing everything; u undoes it).
 
 import { state, mutate, replace } from '../model/store.js';
 import { parseImport } from '../model/import.js';
@@ -31,16 +31,11 @@ function importData(text) {
 
 const importFile = document.getElementById('importFile');
 
-// blur the buttons afterwards so space/enter keep driving the lists
-document.getElementById('exportBtn').addEventListener('click', e => {
-  e.currentTarget.blur();
-  exportData();
-  render();
-});
-document.getElementById('importBtn').addEventListener('click', e => {
-  e.currentTarget.blur();
+// :import — the browser's file dialog; the data is replaced once a file is picked
+export function chooseImportFile() {
   importFile.click();
-});
+}
+
 importFile.addEventListener('change', async () => {
   const file = importFile.files[0];
   importFile.value = '';   // allow re-importing the same file
