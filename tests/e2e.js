@@ -65,7 +65,8 @@ function group(name) {
   for (const li of $$('#loops li')) {
     if (li.classList.contains('divider')) break;
     if (li.classList.contains('tier')) inside = li.classList.contains(name);
-    else if (inside) rows.push(li.textContent.replace(/\s+/g, ' '));
+    // rows only: the line of today's times can sit right below a group
+    else if (inside && li.classList.contains('row')) rows.push(li.textContent.replace(/\s+/g, ' '));
   }
   return rows.join(' | ');
 }
