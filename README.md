@@ -9,10 +9,10 @@ No build step and no dependencies. Data is stored in the browser's `localStorage
 The app is plain ES modules, which browsers don't load from `file://`, so serve the folder:
 
 ```sh
-python3 -m http.server
+python3 serve.py          # or: python3 serve.py 8123
 ```
 
-and open <http://localhost:8000>. Reminders (system notifications for timed tasks) also need this.
+and open <http://localhost:8000>. Reminders (system notifications for timed tasks) also need this. `serve.py` listens on this machine only, never serves dotfiles like `.env`, and passes Loopy's Todoist requests on (see below).
 
 ## Layout
 
@@ -47,10 +47,20 @@ The bottom line shows the main keys for where you are; `?` lists all of them. In
 | `d`             | delete                                          |
 | `/`, `n` / `N`  | search, next / previous match                   |
 | `t` / `T`       | new loop from a template / edit templates       |
+| `a`, `:pick [filter]` | add tasks from Todoist (see below)        |
 | `s`             | show the right column (narrow windows)          |
 | `u`             | undo                                            |
 | `?`             | all keys                                        |
 | `:export` / `:import` | download all data / replace it from a file |
+| `:park [when]`  | move the task to Todoist (see below)            |
+
+## Todoist
+
+Loopy doesn't sync with Todoist, but tasks can move between them by hand. Todoist holds the long-term to-dos and Loopy holds today.
+
+- **Set up:** put your API token (Todoist → Settings → Integrations → Developer) in `.env` as `TODOIST_TOKEN=…` (see `.env.example`; `.env` is gitignored). `serve.py` reads it on every request, so no restart is needed, and adds it to Loopy's Todoist requests: the browser never sees the token. It passes on only what Loopy does (list tasks and projects, add a task, change a task's date), and only from Loopy's own pages.
+- **`a`** (or `:pick`) lists Todoist's today and overdue tasks with their project. `:pick <filter>` takes any [Todoist filter](https://todoist.com/help/articles/introduction-to-filters-V98wIH) instead: `:pick @arbeit` lists everything labelled arbeit, `:pick today & @arbeit` only today's. `space` marks several, `enter` copies the marked ones (or the selected one) into the selected loop. A time due today becomes a time marker, p1 becomes `@i`, and the description becomes the note. Todoist is not changed: a task finished here still needs ticking off there. Tasks already picked show a ✓ and can't be added twice.
+- **`:park [when]`** moves the selected task to Todoist: it becomes a new Inbox task (`when` is Todoist's own date text, like `tomorrow` or `fri`) and leaves Loopy. A task that came from Todoist is still there, so parking only removes it here, and moves its date if you give one.
 
 The note editor opens in normal mode with a few vim keys (motions, `d`/`c` with `w e b $ 0 iw`, `dd`, `cc`, `C`, counts) and `:w`, `:wq`, `:x`, `:q`, `:q!`.
 
@@ -66,6 +76,7 @@ src/
     queries.js         next actions, loop status, what needs you today, due reminders
     store.js           state, localStorage, schema version + migrations, undo
     import.js          reading an export file
+    todoist.js         what a picked Todoist task becomes, the picker's order
   ui/
     view.js            ui state, the current mode, what the panes show
     commands.js        every key: what it does and its hint (one table)
@@ -75,7 +86,7 @@ src/
   editor/
     vim.js             pure vim core: (state, key) → state
     modal.js           the note / rename editor around it
-  features/            search, templates, reminders, export/import, seed data
+  features/            search, templates, reminders, export/import, Todoist, seed data
 tests/
 ```
 
@@ -88,6 +99,7 @@ tests/
 python3 tests/run.py          # everything
 python3 tests/run.py unit     # pure modules only
 python3 tests/run.py e2e      # the app in a browser, driven by keys
+python3 tests/run.py server   # serve.py: what it serves and passes on
 ```
 
-Runs headless Chrome (set `CHROME` if it isn't in the default macOS location). With the server running, <http://localhost:8000/tests/> shows the same results in the browser.
+The browser tests run headless Chrome (set `CHROME` if it isn't in the default macOS location). With the server running, <http://localhost:8000/tests/> shows the same results in the browser.

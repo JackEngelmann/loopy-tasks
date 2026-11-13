@@ -7,6 +7,7 @@ import { migrate, stampWaiting, SCHEMA_VERSION } from '../src/model/store.js';
 import { parseImport } from '../src/model/import.js';
 import { initialVim, vimKey } from '../src/editor/vim.js';
 import { age } from '../src/util.js';
+import { fromTodoist, pickerOrder, daysOver, dueOf } from '../src/model/todoist.js';
 
 const task = (title, extra = {}) => ({ id: title, title, loopId: null, done: false, ...extra });
 
@@ -195,4 +196,32 @@ test('util: ages', () => {
   eq(age(0, 5 * 60e3), '5m');
   eq(age(0, 3 * 3600e3), '3h');
   eq(age(0, 50 * 3600e3), '2d');
+});
+
+// ── Todoist ───────────────────────────────────────────────────────────────────
+
+const tt = (content, due, extra = {}) => ({ id: content, content, priority: 1, ...(due && { due: { date: due } }), ...extra });
+
+test('todoist: a picked task keeps today\'s time, p1 and the description', () => {
+  const today = '2026-11-13';
+  eq(fromTodoist(tt('Call Anna', '2026-11-13T14:30:00'), today).title, 'Call Anna 14:30');
+  eq(fromTodoist(tt('Call Anna', '2026-11-11T14:30:00'), today).title, 'Call Anna', 'an overdue time is no appointment today');
+  eq(fromTodoist(tt('Pay rent', '2026-11-13', { priority: 4 }), today).title, 'Pay rent @i');
+  const t = fromTodoist(tt('Plan', '2026-11-13', { description: ' details ' }), today);
+  eq([t.todoistId, t.note], ['Plan', 'details']);
+  ok(!('note' in fromTodoist(tt('Plan', null), today)));
+});
+
+test('todoist: due dates', () => {
+  eq(dueOf(tt('x', '2026-11-13')), { date: '2026-11-13', time: null });
+  eq(dueOf(tt('x', '2026-11-13T09:05:00')), { date: '2026-11-13', time: 545 });
+  eq(daysOver(tt('x', '2026-11-10'), '2026-11-13'), 3);
+  eq(daysOver(tt('x', '2026-11-13T08:00:00'), '2026-11-13'), 0);
+});
+
+test('todoist: overdue first, then timed, then the rest', () => {
+  const list = [tt('undated', null), tt('plain', '2026-11-13'), tt('next week', '2026-11-20'), tt('at 15', '2026-11-13T15:00:00'),
+    tt('old', '2026-11-01'), tt('tomorrow 8', '2026-11-14T08:00:00'), tt('at 9', '2026-11-13T09:00:00'), tt('older', '2026-10-01')];
+  eq(pickerOrder(list, '2026-11-13').map(t => t.content),
+    ['older', 'old', 'at 9', 'at 15', 'plain', 'tomorrow 8', 'next week', 'undated']);
 });

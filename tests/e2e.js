@@ -306,6 +306,118 @@ test('t creates a loop from a template', async () => {
   ok(focused('tasks'));
 });
 
+// ── Todoist ───────────────────────────────────────────────────────────────────
+
+// a fake serve.py: answers the list requests and records what is sent
+function fakeTodoist(tasks) {
+  const sent = [];
+  w.fetch = async (url, opts = {}) => {
+    sent.push({ url, method: opts.method, body: opts.body && JSON.parse(opts.body), headers: opts.headers });
+    const results = url.includes('/projects') ? [{ id: 'P', name: 'Home' }] : url.includes('/tasks/filter') ? tasks : null;
+    return { ok: true, status: 200, json: async () => results ? { results, next_cursor: null } : { id: 'new' } };
+  };
+  return sent;
+}
+const settle = () => new Promise(r => setTimeout(r, 0));
+const today = () => new Date().toLocaleDateString('sv');   // YYYY-MM-DD
+
+function command(line) {
+  keys(':');
+  $('#cmdInput').value = line;
+  $('#cmdInput').dispatchEvent(event('Enter'));
+}
+
+test('without serve.py, a says how to start it', async () => {
+  await fresh();
+  // a plain file server answers the Todoist route with an HTML 404
+  w.fetch = async () => ({ ok: false, status: 404, json: async () => { throw new SyntaxError('not JSON'); } });
+  keys('a');
+  await settle();
+  ok(text('#todoist').includes('python3 serve.py'));
+});
+
+test('serve.py\'s errors show in the list', async () => {
+  await fresh();
+  w.fetch = async () => ({ ok: false, status: 503, json: async () => ({ error: 'no TODOIST_TOKEN in .env' }) });
+  keys('a');
+  await settle();
+  ok(text('#todoist').includes('Todoist: no TODOIST_TOKEN in .env'));
+});
+
+test('a lists Todoist tasks; enter adds the selected one to the loop', async () => {
+  await fresh();
+  const sent = fakeTodoist([
+    { id: '1', content: 'Water plants', project_id: 'P', priority: 1, due: { date: today() } },
+    { id: '2', content: 'Call Anna', project_id: 'P', priority: 4, due: { date: `${today()}T14:30:00` }, description: 'about the trip' },
+  ]);
+  keys('j', 'j', 'a');
+  ok(!$('#todoist').hidden);
+  eq(text('#mode'), 'TODOIST');
+  await settle();
+  eq($$('#todoist .row').length, 2);
+  ok(text('#todoist .row.sel').includes('14:30'), 'timed tasks first');
+  ok(text('#todoist .row.sel').includes('Home'), 'with the project');
+  ok(sent.every(r => r.url.startsWith('todoist/') && !r.headers.Authorization), 'through serve.py, without a token');
+  keys('Enter');
+  ok($('#todoist').hidden);
+  const t = task('Call Anna');
+  eq([t.title, t.loopId, t.todoistId, t.note], ['Call Anna 14:30 @i', loop('Website redesign').id, '2', 'about the trip']);
+  ok(sent.every(r => !r.method || r.method === 'GET'), 'Todoist is left as it is');
+});
+
+test('space marks several; picked ones are not offered again', async () => {
+  await fresh();
+  fakeTodoist(['A', 'B', 'C'].map(c => ({ id: c, content: `Todo ${c}`, project_id: 'P', priority: 1, due: { date: today() } })));
+  keys('j', 'a');
+  await settle();
+  keys(' ', ' ', 'Enter');
+  eq(data().tasks.filter(t => t.todoistId).map(t => [t.title, t.loopId]), [['Todo A', null], ['Todo B', null]]);
+  command('pick');
+  await settle();
+  eq($$('#todoist .row.picked').length, 2);
+  keys('Enter');
+  eq(data().tasks.filter(t => t.todoistId).length, 2, 'enter on a picked task adds nothing');
+});
+
+test(':pick @label asks Todoist for that filter', async () => {
+  await fresh();
+  const sent = fakeTodoist([{ id: '1', content: 'Write report', project_id: 'P', priority: 1, labels: ['arbeit'] }]);
+  command('pick @arbeit');
+  await settle();
+  ok(decodeURIComponent(sent[0].url).includes('query=@arbeit'));
+  eq(text('#todoistTitle'), 'Todoist · @arbeit');
+  eq($$('#todoist .row').length, 1);
+});
+
+test(':park sends the task to Todoist and removes it here', async () => {
+  await fresh();
+  const sent = fakeTodoist([]);
+  keys('j', 'j', 'l');   // Sketch new landing page @i
+  command('park tomorrow');
+  await settle();
+  const req = sent.at(-1);
+  eq([req.method, req.body], ['POST', { content: 'Sketch new landing page', priority: 4, due_string: 'tomorrow' }]);
+  ok(!task('Sketch new landing page'));
+  ok(text('#flash').includes('parked'));
+});
+
+test(':park on a picked task only removes it, or moves its date', async () => {
+  await fresh({ stored: { version: 2, loops: [], templates: { loops: [], tasks: [] }, tasks: [
+    { id: 'a', title: 'From Todoist', todoistId: '7', loopId: null, done: false },
+    { id: 'b', title: 'Also from Todoist', todoistId: '8', loopId: null, done: false },
+  ] } });
+  const sent = fakeTodoist([]);
+  keys('j', 'l');
+  command('park');
+  await settle();
+  eq(sent.length, 0);
+  ok(!task('From Todoist'));
+  command('park fri');
+  await settle();
+  eq([sent[0].url.endsWith('/tasks/8'), sent[0].body], [true, { due_string: 'fri' }]);
+  eq(data().tasks.length, 0);
+});
+
 // ── Modal editor ──────────────────────────────────────────────────────────────
 
 test('m opens the note editor in normal mode; :wq saves', async () => {

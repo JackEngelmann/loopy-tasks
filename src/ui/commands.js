@@ -17,6 +17,7 @@ import { ui, leave, enter } from './view.js';
 import { startSearch, searchNext } from '../features/search.js';
 import { toggleTemplates, openPicker, pickerMove, pickerChoose } from '../features/templates.js';
 import { startCommand } from '../features/cmdline.js';
+import { openTodoist, todoistMove, todoistMark, todoistChoose } from '../features/todoist.js';
 import { openModal } from '../editor/modal.js';
 
 const inLoops = ctx => ctx.pane === 'loops' && !ctx.templates;
@@ -42,6 +43,7 @@ export const COMMANDS = [
     essential: true, keys: { o: () => act.add(true), O: () => act.add(false) } },
   { modes: ['normal'], hint: 't', label: 'new from template', show: inLoops, essential: true, keys: { t: openPicker } },
   { modes: ['normal'], hint: 'T', label: 'edit templates', keys: { T: toggleTemplates } },
+  { modes: ['normal'], hint: 'a', label: 'add from Todoist', show: notTemplates, keys: { a: openTodoist } },
   { modes: ['normal'], hint: 'space', label: 'done', show: inTasks, essential: true, keys: { ' ': act.toggleDone } },
   { modes: ['normal'], hint: 'w', label: 'waiting', show: inTasks, essential: true, keys: { w: () => act.toggleMarker('@w') } },
   { modes: ['normal'], hint: 'i', label: 'important', keys: { i: () => act.toggleMarker('@i') } },
@@ -57,7 +59,7 @@ export const COMMANDS = [
   { modes: ['normal'], hint: 'u', label: 'undo', keys: { u: act.undo } },
   { modes: ['normal'], hint: 's', label: 'Today panel (narrow windows)', keys: { s: act.toggleSide } },
   { modes: ['normal'], help: ['esc', 'clear cut and search'], keys: { Escape: act.clearMarks } },
-  { modes: ['normal'], hint: ':', label: 'commands (:export, :import)', keys: { ':': startCommand } },
+  { modes: ['normal'], hint: ':', label: 'commands (:pick, :park, :export, :import)', keys: { ':': startCommand } },
   { modes: ['normal'], hint: '?', label: 'all keys', essential: true, keys: { '?': () => enter('help') } },
 
   // ── picker (t) ──
@@ -66,6 +68,13 @@ export const COMMANDS = [
   { modes: ['picker'], hint: 'enter', label: 'create loop', keys: { Enter: pickerChoose } },
   { modes: ['picker'], hint: 'esc', label: 'cancel', keys: { Escape: leave } },
 
+  // ── Todoist (a) ──
+  { modes: ['todoist'], hint: 'j/k', label: 'select',
+    keys: { j: () => todoistMove(1), ArrowDown: () => todoistMove(1), k: () => todoistMove(-1), ArrowUp: () => todoistMove(-1) } },
+  { modes: ['todoist'], hint: 'space', label: 'mark', keys: { ' ': todoistMark } },
+  { modes: ['todoist'], hint: 'enter', label: 'add to the selected loop', keys: { Enter: todoistChoose } },
+  { modes: ['todoist'], hint: 'esc', label: 'cancel', keys: { Escape: leave, q: leave } },
+
   // ── typing modes: their inputs handle the keys, these rows are hints only ──
   { modes: ['insert'], hint: 'enter', label: 'save' },
   { modes: ['insert'], hint: 'esc', label: 'cancel' },
@@ -73,8 +82,11 @@ export const COMMANDS = [
   { modes: ['insert'], hint: '@i', label: 'important' },
   { modes: ['insert'], hint: '14:30 / +20m', label: 'timed' },
   { modes: ['help'], hint: 'esc', label: 'close', keys: { Escape: leave, '?': leave, q: leave } },
-  { modes: ['command'], hint: ':export', label: 'download all data as a file' },
-  { modes: ['command'], hint: ':import', label: 'replace all data from a file' },
+  // short in the status bar, in full in the ? help
+  { modes: ['command'], hint: ':pick [filter]', label: 'from Todoist', help: [':pick [filter]', 'add tasks from Todoist (a); a filter like @arbeit'] },
+  { modes: ['command'], hint: ':park [when]', label: 'to Todoist', help: [':park [when]', 'move the task to Todoist ("tomorrow", "fri")'] },
+  { modes: ['command'], hint: ':export', label: 'download', help: [':export', 'download all data as a file'] },
+  { modes: ['command'], hint: ':import', label: 'replace from file', help: [':import', 'replace all data from a file'] },
   { modes: ['command'], hint: 'enter', label: 'run' },
   { modes: ['command'], hint: 'esc', label: 'cancel' },
   { modes: ['search'], hint: 'enter', label: 'confirm' },
@@ -136,7 +148,7 @@ export function helpSections() {
     .filter(([, label]) => label);
   return [
     ['Lists', rows('normal')],
-    ['Commands', rows('command').slice(0, 2)],
+    ['Commands', rows('command').slice(0, -2)],
     ['Typing a task', rows('insert').slice(2)],
     ['Note editor (m, R)', [...rows('vim-normal'), ...rows('vim-insert').slice(1)]],
   ];

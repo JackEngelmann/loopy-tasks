@@ -4,12 +4,16 @@
 import { ui, enter, leave } from '../ui/view.js';
 import { render } from '../ui/render/index.js';
 import { exportData, chooseImportFile } from './io.js';
+import { openTodoist, park } from './todoist.js';
 
 const input = document.getElementById('cmdInput');
 
+// ":name rest" calls COMMANDS[name](rest)
 const COMMANDS = {
   export: exportData,
   import: chooseImportFile,
+  pick: openTodoist,   // :pick [Todoist filter]
+  park,
 };
 
 export function startCommand() {
@@ -17,11 +21,12 @@ export function startCommand() {
   input.value = '';
 }
 
-function run(name) {
+function run(line) {
   leave();
   input.blur();
-  if (COMMANDS[name]) COMMANDS[name]();
-  else if (name) ui.flash = { text: `not a command: ${name} (try :export or :import)`, error: true };
+  const [, name, arg] = line.match(/^(\S*)\s*(.*)$/);
+  if (COMMANDS[name]) COMMANDS[name](arg);
+  else if (name) ui.flash = { text: `not a command: ${name} (try :pick, :park, :export or :import)`, error: true };
   render();
 }
 

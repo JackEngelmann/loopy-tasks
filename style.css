@@ -168,10 +168,10 @@ main {
 .pane.focused { box-shadow: 0 0 0 1px color-mix(in srgb, var(--sel) 45%, transparent); }
 .pane.focused .pane-head { color: var(--sel); }
 /* overlays keep a border so they stand off the panes behind them */
-#picker, #help, #noteBox, body.side-open .side { border: 1px solid var(--border); }
+#picker, #todoist, #help, #noteBox, body.side-open .side { border: 1px solid var(--border); }
 /* the editor, picker and help sit on a veil, with a focus-colored outline */
 #backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 9; }
-#picker, #help, #noteBox { border-color: color-mix(in srgb, var(--sel) 55%, transparent); }
+#picker, #todoist, #help, #noteBox { border-color: color-mix(in srgb, var(--sel) 55%, transparent); }
 /* the status bar stays readable above the veil */
 footer { position: relative; z-index: 10; }
 
@@ -185,7 +185,7 @@ footer { position: relative; z-index: 10; }
   gap: 8px;
 }
 /* overlays with a title and a status keep them apart */
-#noteBox .pane-head, #help .pane-head { justify-content: space-between; }
+#noteBox .pane-head, #help .pane-head, #todoist .pane-head { justify-content: space-between; }
 .star { color: var(--imp); }
 
 ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
@@ -429,7 +429,7 @@ footer .mode.tpl { background: var(--imp); }
 #helpBody dd { color: var(--text-2); }
 
 /* template picker (t) */
-#picker {
+#picker, #todoist {
   position: fixed;
   top: 18%;
   left: 50%;
@@ -439,6 +439,13 @@ footer .mode.tpl { background: var(--imp); }
   box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
   z-index: 10;
 }
+#todoist { width: min(620px, calc(100vw - 32px)); }
+/* Todoist (a): already picked ones are dimmed, marked ones get a dot */
+#todoist .row.picked .name { color: var(--text-3); }
+#todoist .row.marked .check { color: var(--sel); }
+#todoist .when { color: var(--stale); font-size: 12px; }
+#todoist .later { color: var(--text-3); font-size: 12px; }
+.empty.error { color: var(--cut); }
 
 /* note editor (m): multi-line with a few vim keys; :wq saves */
 #noteBox {

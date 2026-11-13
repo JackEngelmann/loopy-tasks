@@ -12,6 +12,7 @@ export const PANES = ['loops', 'tasks'];
 //   modal   the vim-style editor (m note, R rename)        ui.editing = { kind: 'note' | 'title', id }
 //   search  typing a "/" query                              ui.search
 //   picker  choosing a template (t)                         ui.picker = { idx }
+//   todoist picking Todoist tasks (a)                       ui.todoist = { idx, items, marked, error }
 export const ui = {
   mode: 'normal',
   focus: 'loops',     // one of PANES
@@ -24,6 +25,7 @@ export const ui = {
   templates: false,   // template mode: the panes edit templates instead of loops
   otherCursor: null,  // cursor of the mode you're not in, restored on T
   picker: null,
+  todoist: null,
   sideOpen: false,    // right column shown as an overlay on narrow windows (s)
   help: false,        // the ? help shown over the editor (in normal mode it's ui.mode 'help')
 };
@@ -40,6 +42,7 @@ export function leave() {
   ui.mode = 'normal';
   ui.editing = null;
   ui.picker = null;
+  ui.todoist = null;
 }
 
 // virtual loops above the real ones: "All" shows every task, "Standalone" the tasks
