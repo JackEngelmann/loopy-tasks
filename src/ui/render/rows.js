@@ -1,6 +1,6 @@
 // Row markup shared by the panes.
 
-import { isNext } from '../../model/queries.js';
+import { isNext, checkDue } from '../../model/queries.js';
 import { isWaiting, isImportant, isNotNow, timeOf, fmtTime, nowMinutes, displayTitle } from '../../model/markers.js';
 import { ui, db, isTemplate, loopById } from '../view.js';
 import { highlight } from '../../features/search.js';
@@ -23,8 +23,9 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
   const ed = ui.editing;
   const time = timeOf(t);
   const now = nowMinutes();
-  // template times aren't appointments, so they're never due
-  const due = !t.done && !isNotNow(t) && time !== null && time <= now && !isTemplate(t);
+  // template times aren't appointments, so they're never due; a wait's time is a check instead
+  const due = !t.done && !isNotNow(t) && !isWaiting(t) && time !== null && time <= now && !isTemplate(t);
+  const check = !isTemplate(t) && checkDue(t);
   const next = marks && isNext(db(), t);
   const cls = ['row',
     selected && 'sel',
@@ -33,6 +34,7 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
     isNotNow(t) && 'not-now',
     t.done && 'done',
     due && 'due',
+    check && 'check-due',
     t.id === ui.cutId && 'cut',
     notes && t.note && 'has-note',
     below && 'two-line',
@@ -44,16 +46,16 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
     ? editInput(t.title)
     : `<span class="name">${hl(displayTitle(t))}</span>`;
   // only meaningful markers; plain tasks leave the column empty
-  const check = t.done ? '✓' : isWaiting(t) ? '◷' : due ? '!' : next ? '▸' : '';
+  const mark = t.done ? '✓' : isWaiting(t) ? '◷' : due ? '!' : next ? '▸' : '';
   const timeEl = time !== null ? `<span class="time">${hl(fmtTime(time))}</span>` : '';
   const star = !t.done && isImportant(t) ? `<span class="star">★</span>` : '';
   // how late it is, else how long it's been waiting
-  const when = label ?? (due ? `${duration(now - time)} late` : null);
+  const when = label ?? (due ? `${duration(now - time)} late` : check ? 'check' : null);
   // (a waiting task with a time shows that time instead)
   const tail = below !== undefined ? (below ? `<div class="row-below">${below}</div>` : '')
     : when ? `<span class="when">${when}</span>`
     : !t.done && t.waitingSince && time === null ? `<span class="wait-age">${age(t.waitingSince)}</span>` : '';
   // in full while the task is selected
   const note = notes ? noteLine(t, 'task-note', selected) : t.note ? '<span class="note-mark">✎</span>' : '';
-  return `<li class="${cls}" data-i="${i}"><span class="check">${check}</span>${star}${timeEl}${tag}${name}${tail}${note}</li>`;
+  return `<li class="${cls}" data-i="${i}"><span class="check">${mark}</span>${star}${timeEl}${tag}${name}${tail}${note}</li>`;
 }

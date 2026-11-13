@@ -448,6 +448,8 @@ footer .spacer { flex: 1; }
 .row.top-row { margin: 0 6px; border-radius: 6px; }
 .check-row { cursor: pointer; }
 .check-row .check, .check-row .when { color: var(--wait); }
+/* a wait due for a look, in the middle pane */
+.row.check-due .when { color: var(--wait); font-weight: 600; }
 .check-row .when { margin-left: auto; font-family: var(--mono); font-size: 12px; }
 
 /* the first thing you can do, going down your loops */

@@ -7,7 +7,7 @@
 
 import { state } from '../model/store.js';
 import { isWaiting, timeOf } from '../model/markers.js';
-import { doable, openTasks, checkDue } from '../model/queries.js';
+import { doable, openTasks, checkDue, dueSince } from '../model/queries.js';
 import { ui, loopsList, tasksOf, VIRTUAL } from './view.js';
 
 // the first thing you can do now, going down your loops: timed tasks don't count, they
@@ -22,7 +22,7 @@ export function checksByLoop(nowMs = Date.now()) {
   return list.map(loop => {
     const waits = openTasks(state, loop.id).filter(isWaiting);
     const due = waits.filter(t => checkDue(t, nowMs));
-    const oldest = Math.min(...due.map(t => t.checkedAt ?? t.waitingSince ?? nowMs));
+    const oldest = Math.min(...due.map(t => dueSince(t, nowMs)));
     return { loop, waits: waits.length, due: due.length, oldest };
   }).filter(c => c.due);
 }

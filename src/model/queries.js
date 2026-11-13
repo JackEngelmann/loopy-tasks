@@ -32,27 +32,38 @@ export function loopStatus(d, l) {
 }
 
 // not-now tasks have no appointment: no Today, no reminder
-// a wait without a check-back time wants a look every CHECK_EVERY minutes; . resets it
-// (:check changes it, see features/check-every.js)
+// a wait wants a look every CHECK_EVERY minutes (:check changes it, see features/check-every.js);
+// a check-back time (@w 14:30, @w +10m) only says when the first look is due. . resets it
+// and drops that time, so from then on the interval applies.
 export let CHECK_EVERY = 10;
 export const setCheckEvery = minutes => { CHECK_EVERY = minutes; };
-export const checkDue = (t, nowMs = Date.now()) => !t.done && isWaiting(t) && !isNotNow(t) && timeOf(t) === null
-  && nowMs - (t.checkedAt ?? t.waitingSince ?? nowMs) >= CHECK_EVERY * 60_000;
+const minutesOf = ms => { const d = new Date(ms); return d.getHours() * 60 + d.getMinutes(); };
+export function checkDue(t, nowMs = Date.now(), nowMin = minutesOf(nowMs)) {
+  if (t.done || !isWaiting(t) || isNotNow(t)) return false;
+  const time = timeOf(t);
+  if (time !== null) return time <= nowMin;
+  return nowMs - (t.checkedAt ?? t.waitingSince ?? nowMs) >= CHECK_EVERY * 60_000;
+}
+// since when a wait that is due hasn't been looked at: its check-back time, or the last look
+export function dueSince(t, nowMs = Date.now()) {
+  const time = timeOf(t);
+  return time !== null ? new Date(nowMs).setHours(0, time, 0, 0) : t.checkedAt ?? t.waitingSince ?? nowMs;
+}
 
 export const timedTasks = tasks => tasks.filter(t => !t.done && !isNotNow(t) && timeOf(t) !== null)
   .sort((a, b) => timeOf(a) - timeOf(b));
 
 // ── Attention ──
 // What needs you, for the top of the loops pane:
-//   now    its time has come (overdue tasks and check-backs of waiting ones)
-//   check  waiting without a check-back time, not looked at for CHECK_EVERY minutes
+//   now    its time has come (appointments; a wait's check-back time goes to check instead)
+//   check  waiting and due for a look (see checkDue)
 // Times have no date: everything is today.
 
 export function attention(d, now, nowMs = Date.now()) {
   const open = d.tasks.filter(t => !t.done && !isNotNow(t));
   return {
-    now: timedTasks(open).filter(t => timeOf(t) <= now),
-    check: open.filter(t => checkDue(t, nowMs)),
+    now: timedTasks(open).filter(t => timeOf(t) <= now && !isWaiting(t)),
+    check: open.filter(t => checkDue(t, nowMs, now)),
   };
 }
 

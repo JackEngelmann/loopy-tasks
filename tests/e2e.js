@@ -371,6 +371,22 @@ test('Check rows: the cursor stops on them above the loops; . checks the loop an
   ok(selected('loops').startsWith('Loopy'), 'after the last one: the green loop');
 });
 
+test('a check-back time is the first look: due, the wait goes to Check, and . drops the time', async () => {
+  const past = hhmm(Math.max(nowMin() - 5, 0));
+  await fresh({ stored: { version: 3, templates: { loops: [], tasks: [] }, loops: [{ id: 'L', title: 'Agents' }], tasks: [
+    { id: 'a', title: `Agent A ${past} @w`, loopId: 'L', done: false, waitingSince: Date.now() - 60_000 },
+  ] } });
+  eq(group('now'), '', 'not in Now');
+  eq(checkRows().length, 1);
+  ok(checkRows()[0].startsWith('◷Agents1 · '), checkRows()[0]);
+  keys('l');
+  ok(selected('tasks').includes('check'), 'the middle pane says so too');
+  keys('.');
+  eq(task('Agent A').title, 'Agent A @w', 'the time is gone');
+  eq(checkRows(), []);
+  ok(text('#flash').includes(`again in ${CHECK_EVERY}m`));
+});
+
 test(':check sets how long a wait goes without a look', async () => {
   await fresh({ stored: agentDay() });
   eq(checkRows().length, 2);

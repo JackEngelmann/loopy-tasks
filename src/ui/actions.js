@@ -118,7 +118,8 @@ function finishLoop() {
   ui.flash = { text: `finished "${loop.title}" · u to undo` };
 }
 
-// .: looked at what's waiting; it asks again in CHECK_EVERY minutes. On a loop's row,
+// .: looked at what's waiting; it asks again in CHECK_EVERY minutes (a check-back time is
+// dropped: it was only the first look). On a loop's row,
 // all of that loop's waits at once (several agents in one project are looked at together)
 export function markChecked() {
   if (ui.templates) return;
@@ -127,7 +128,7 @@ export function markChecked() {
   if (!waits.length) { ui.flash = { text: 'nothing waiting here' }; return; }
   const now = Date.now();
   const before = checksByLoop().map(c => c.loop.id);
-  mutate(() => waits.forEach(t => { t.checkedAt = now; }));
+  mutate(() => waits.forEach(t => { t.checkedAt = now; t.title = stripTime(t.title); }));
   if (ui.checkOn !== null) afterCheck(before);
   ui.flash = { text: `checked${waits.length > 1 ? ` ${waits.length}` : ''} · again in ${CHECK_EVERY}m` };
 }

@@ -2,7 +2,7 @@
 
 import { test, eq, ok } from './harness.js';
 import { toggleToken, isWaiting, timeOf, resolveRelative, displayTitle } from '../src/model/markers.js';
-import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders, attention, notNowLast, checkDue, CHECK_EVERY, INBOX_ID } from '../src/model/queries.js';
+import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders, attention, notNowLast, checkDue, dueSince, CHECK_EVERY, INBOX_ID } from '../src/model/queries.js';
 import { migrate, stampWaiting, settle, SCHEMA_VERSION } from '../src/model/store.js';
 import { parseImport } from '../src/model/import.js';
 import { initialVim, vimKey } from '../src/editor/vim.js';
@@ -79,6 +79,9 @@ test('queries: attention: what has its time now, and the waits due for a look', 
   eq(titles(g.now), ['overdue 9:00 @i']);
   eq(titles(g.check), [], 'a minute in, no wait is due yet');
   eq(titles(attention(d, 600, 60 * 60_000).check), ['waiting long @w', 'waiting short @w']);
+  const later = attention(d, 630, 60_000);
+  eq([titles(later.now), titles(later.check)], [['overdue 9:00 @i', 'soon 10:20'], ['check back 10:25 @w']],
+    'a wait whose check-back time has come goes to check, not now');
 });
 
 test('queries: due reminders', () => {
@@ -159,7 +162,10 @@ test('checks: a wait without a time is due CHECK_EVERY minutes after it was last
   ok(!checkDue(t, (CHECK_EVERY - 1) * min));
   ok(checkDue(t, CHECK_EVERY * min));
   ok(!checkDue({ ...t, checkedAt: 10 * min }, (10 + CHECK_EVERY - 1) * min), '. resets it');
-  ok(!checkDue(task('agent 15:00 @w', { waitingSince: 0 }), 60 * min), 'a check-back time decides instead');
+  const timed = task('agent 15:00 @w', { waitingSince: 0 });
+  ok(!checkDue(timed, 600 * min, 14 * 60), 'a check-back time says when the first look is due');
+  ok(checkDue(timed, 0, 15 * 60), '... whatever the interval');
+  eq(new Date(dueSince(timed, Date.now())).getHours(), 15);
   const g = attention({ loops: [], tasks: [t, task('agent 2 @w', { waitingSince: 0, checkedAt: 35 * min - 30_000 })] }, 600, 35 * min);
   eq(g.check.map(x => x.title), ['agent @w']);
 });

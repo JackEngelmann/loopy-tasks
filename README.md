@@ -18,7 +18,7 @@ and open <http://localhost:8000>. Reminders (system notifications for timed task
 
 Two panes, read from the top. The idea: what needs a look comes first, and your eye stops at the first thing you can do.
 
-- **Left, on top:** **Now** (its time has come: appointments, check-back times), then today's remaining times in one line, then **Check**: one row per loop whose waits haven't been looked at for a while (10 min; `:check` changes it), in loop order, with how many and since when. The cursor can stand on a Check row: `.` checks all of that loop's waits and moves on to the next row, `l` opens the loop on its first wait that's due. `]` / `[` go from one Check row to the next and end at the green loop. The header badge and the tab title count what's in Now.
+- **Left, on top:** **Now** (appointments whose time has come), then today's remaining times in one line, then **Check**: one row per loop whose waits are due for a look, in loop order, with how many and since when. A wait is due once it hasn't been looked at for a while (10 min; `:check` changes it), or, if it has a check-back time (`@w +10m`), once that time comes; you also get a reminder then. `.` resets it, and drops a check-back time: from then on the interval applies. The cursor can stand on a Check row: `.` checks all of that loop's waits and moves on to the next row, `l` opens the loop on its first wait that's due. `]` / `[` go from one Check row to the next and end at the green loop. The header badge and the tab title count what's in Now.
 - **Left, below:** your loops, most important first, and at the bottom of the pane `All` and `Inbox` (captured, not sorted yet; yellow while anything is in it). The first loop with something you can do now is **green** (timed tasks don't count: they belong to the clock). A loop without a next action is yellow; one where everything is waiting is teal. The second line is the loop's next action. A single thing to do (a message to answer) is a **one-step loop** (`S`): one line, keys on it act on its task, and it goes away when the task is done. Every task belongs to a loop or the Inbox, except timed ones (a meeting with nothing to prepare), which may have no loop and show in All and on top.
 - **Middle:** the selected loop's note and open tasks; not-now tasks (`z`) last, under a quiet heading. They are never a next action, don't count, and stay out of Now, Check and reminders, so a loop with only those left is yellow.
 
@@ -26,7 +26,7 @@ Two panes, read from the top. The idea: what needs a look comes first, and your 
 
 | Marker          | Meaning                                                  |
 |-----------------|----------------------------------------------------------|
-| `@w`            | waiting (shows how long); add a time for when to check back |
+| `@w`            | waiting (shows how long); a time (`+10m`) says when the first look is due |
 | `@i`            | important                                                 |
 | `@n`            | not now: kept with its loop (an idea, held back), but not work |
 | `14:30`         | timed: listed in Timed, reminded at that time             |
