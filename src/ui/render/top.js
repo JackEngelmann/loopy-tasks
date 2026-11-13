@@ -1,12 +1,11 @@
 // The top of the loops pane: Doing (what's in progress), Now (its time has come), today's
-// remaining times, and the Check rows (one per loop with waits due for a look). Not in
-// template mode.
+// remaining times, and Check (the waits due for a look). Not in template mode.
 
 import { state } from '../../model/store.js';
-import { attention, timedTasks, inProgress } from '../../model/queries.js';
+import { attention, timedTasks, inProgress, dueSince } from '../../model/queries.js';
 import { isWaiting, timeOf, fmtTime, nowMinutes, displayTitle } from '../../model/markers.js';
 import { ui, loopById } from '../view.js';
-import { checksByLoop } from '../attention.js';
+import { checkTasks } from '../attention.js';
 import { taskRow } from './rows.js';
 import { setTitleCount } from '../../features/reminders.js';
 import { esc, age, duration } from '../../util.js';
@@ -46,15 +45,14 @@ function doingBlock() {
   }).replace(' data-i="-1"', ` data-doing="${esc(t.id)}"`)).join('');
 }
 
-// in loop order; the cursor can stand on them (ui.topOn, see attention.js)
+// the waits due for a look, in loop order, with their loop and since when; the cursor can
+// stand on them (ui.topOn, see attention.js)
 function checkBlock() {
-  const checks = checksByLoop();
-  if (!checks.length) return '';
-  return '<li class="tier check">Check</li>' + checks.map(c => {
-    const of = c.waits > 1 ? `${c.due} of ${c.waits}` : '1';
-    const sel = cursorOn('check', c.loop.id) ? ' sel' : '';
-    return `<li class="row check-row${sel}" data-check="${esc(c.loop.id)}"><span class="check">◷</span><span class="name">${esc(c.loop.title)}</span><span class="when">${of} · ${c.due > 1 ? 'oldest ' : ''}${age(c.oldest)}</span></li>`;
-  }).join('');
+  const due = checkTasks();
+  if (!due.length) return '';
+  return '<li class="tier check">Check</li>' + due.map(t => taskRow(t, -1, {
+    selected: cursorOn('check', t.id), showTag: true, label: age(dueSince(t)), cls: 'top-row check-row', editAs: 'check',
+  }).replace(' data-i="-1"', ` data-check="${esc(t.id)}"`)).join('');
 }
 
 // the tab title counts what's in Now, for when the tab is in the background

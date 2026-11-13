@@ -51,9 +51,9 @@ function commitEdit(value) {
   render();
 }
 
-// renaming from a Doing row: the cursor goes back there (it leaves top rows while typing)
+// renaming from a Doing or Check row: the cursor goes back there (it leaves top rows while typing)
 function backOnTop(ed) {
-  if (ed && ed.where === 'doing') ui.topOn = { kind: 'doing', id: ed.id };
+  if (ed && (ed.where === 'doing' || ed.where === 'check')) ui.topOn = { kind: ed.where, id: ed.id };
 }
 
 function cancelEdit() {

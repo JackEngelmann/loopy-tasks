@@ -4,8 +4,8 @@
 // rows; ui.loopIdx follows it, so the middle pane shows that loop and loop keys work there.
 
 import { state } from '../model/store.js';
-import { isWaiting, timeOf } from '../model/markers.js';
-import { doable, openTasks, checkDue, dueSince, inProgress } from '../model/queries.js';
+import { timeOf } from '../model/markers.js';
+import { doable, checkDue, inProgress } from '../model/queries.js';
 import { ui, loopsList, tasksOf, VIRTUAL } from './view.js';
 
 // the first thing you can do now, going down your loops: timed tasks don't count, they
@@ -13,27 +13,23 @@ import { ui, loopsList, tasksOf, VIRTUAL } from './view.js';
 export const firstTaskOf = loop => doable(state, loop.id).find(t => timeOf(t) === null) || null;
 export const firstDoable = () => state.loops.find(firstTaskOf) || null;
 
-// per loop with waits due for a look, in loop order (the Inbox last)
-export function checksByLoop(nowMs = Date.now()) {
+// the waits due for a look, in loop order and in order within each loop (the Inbox and
+// timed tasks without a loop last)
+export function checkTasks(nowMs = Date.now()) {
   if (ui.templates) return [];
-  const list = [...state.loops, ...VIRTUAL.filter(v => v.kind === 'inbox')];
-  return list.map(loop => {
-    const waits = openTasks(state, loop.id).filter(isWaiting);
-    const due = waits.filter(t => checkDue(t, nowMs));
-    const oldest = Math.min(...due.map(t => dueSince(t, nowMs)));
-    return { loop, waits: waits.length, due: due.length, oldest };
-  }).filter(c => c.due);
+  const ids = [...state.loops.map(l => l.id), ...VIRTUAL.filter(v => v.kind === 'inbox').map(v => v.id), null];
+  return ids.flatMap(id => state.tasks.filter(t => t.loopId === id && checkDue(t, nowMs)));
 }
 
 // ── The cursor on a top row ───────────────────────────────────────────────────
 // Above your loops, the cursor can stand on the Doing rows (tasks in progress) and the Check
-// rows (loops with waits due), in that order. ui.topOn is { kind: 'doing' | 'check', id }.
+// rows (waits due for a look), in that order; both are tasks. ui.topOn is { kind: 'doing' | 'check', id }.
 
 export function topStops() {
   if (ui.templates) return [];
   return [
     ...inProgress(state).map(t => ({ kind: 'doing', id: t.id, loopId: t.loopId })),
-    ...checksByLoop().map(c => ({ kind: 'check', id: c.loop.id, loopId: c.loop.id })),
+    ...checkTasks().map(t => ({ kind: 'check', id: t.id, loopId: t.loopId })),
   ];
 }
 const isHere = s => ui.topOn !== null && s.kind === ui.topOn.kind && s.id === ui.topOn.id;
@@ -75,20 +71,19 @@ export function jumpToTop() {
   return true;
 }
 
-// l / enter on a top row: into the loop, on the task in progress or the first wait that is due
+// l / enter on a top row: into the loop, on that task
 export function openTop() {
   if (ui.topOn === null) return false;
-  const tasks = tasksOf(loopsList()[ui.loopIdx]);
-  const at = ui.topOn.kind === 'doing' ? tasks.findIndex(t => t.id === ui.topOn.id) : tasks.findIndex(t => checkDue(t));
+  const at = tasksOf(loopsList()[ui.loopIdx]).findIndex(t => t.id === ui.topOn.id);
   Object.assign(ui, { topOn: null, focus: 'tasks', taskIdx: Math.max(0, at) });
   return true;
 }
 
 // after . on a Check row: on to the next one, or to the green loop when they're all done
 export function afterCheck(before) {
-  const left = checksByLoop().map(c => c.loop.id);
+  const left = checkTasks().map(t => t.id);
   const next = before.slice(before.indexOf(ui.topOn.id) + 1).find(id => left.includes(id)) ?? left[0];
-  if (next !== undefined) return onTop({ kind: 'check', id: next, loopId: next });
+  if (next !== undefined) return onTop(topStops().find(s => s.kind === 'check' && s.id === next));
   ui.topOn = null;
   const green = firstDoable();
   if (green) Object.assign(ui, { loopIdx: loopsList().indexOf(green), focus: 'loops', taskIdx: 0 });

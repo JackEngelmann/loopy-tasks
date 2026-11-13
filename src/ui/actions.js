@@ -5,7 +5,7 @@ import { toggleToken, stripToken, stripTime, hasToken, isWaiting, isNotNow, time
 import { INBOX_ID, CHECK_EVERY, openTasks } from '../model/queries.js';
 import { ui, enter, PANES, db, loopsList, onVirtual, currentLoop, currentTasks, selTask, selItem, topTask, loopById } from './view.js';
 import { swap } from '../util.js';
-import { moveAcrossTop, jumpToTop, openTop, afterCheck, checksByLoop } from './attention.js';
+import { moveAcrossTop, jumpToTop, openTop, afterCheck, checkTasks } from './attention.js';
 
 export function move(delta) {
   if (moveAcrossTop(delta)) return;
@@ -76,7 +76,7 @@ export function add(below) {
 // its loop, a Doing row, a Now row, a one-step loop's row), so `where` remembers which
 export function rename() {
   const item = selItem();
-  const where = ui.focus === 'tasks' ? 'tasks' : topTask() ? 'doing' : 'loop';
+  const where = ui.focus === 'tasks' ? 'tasks' : topTask() ? ui.topOn.kind : 'loop';
   if (item && item.id && !item.kind) enter('insert', { editing: { kind: 'rename', id: item.id, where } });
 }
 
@@ -130,7 +130,7 @@ export function markChecked() {
   const waits = (one ? [selTask()] : currentTasks()).filter(t => t && isWaiting(t));
   if (!waits.length) { ui.flash = { text: 'nothing waiting here' }; return; }
   const now = Date.now();
-  const before = checksByLoop().map(c => c.loop.id);
+  const before = checkTasks().map(t => t.id);
   mutate(() => waits.forEach(t => { t.checkedAt = now; t.title = stripTime(t.title); }));
   if (ui.topOn && ui.topOn.kind === 'check') afterCheck(before);
   ui.flash = { text: `checked${waits.length > 1 ? ` ${waits.length}` : ''} · again in ${CHECK_EVERY}m` };

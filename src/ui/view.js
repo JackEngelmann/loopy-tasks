@@ -79,8 +79,8 @@ export const tasksOf = loop => notNowLast(openTasks(db(), loop.id));
 export const singleTask = loop => loop.single ? openTasks(db(), loop.id)[0] || null : null;
 // middle pane; done tasks are hidden
 export const currentTasks = () => tasksOf(currentLoop());
-// the task on a Doing row the cursor is on
-export const topTask = () => ui.topOn && ui.topOn.kind === 'doing' ? state.tasks.find(t => t.id === ui.topOn.id) || null : null;
+// the task on the Doing or Check row the cursor is on
+export const topTask = () => ui.topOn ? state.tasks.find(t => t.id === ui.topOn.id) || null : null;
 export const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] : topTask() || singleTask(currentLoop());
 // the loop or task the cursor is on (a one-step loop is its task, a Doing row its task)
 export const selItem = () => ui.focus === 'loops' ? topTask() || singleTask(currentLoop()) || currentLoop() : selTask();

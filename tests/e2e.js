@@ -70,7 +70,10 @@ function group(name) {
   return rows.join(' | ');
 }
 
+// a Check row's first line: loop, how many, since when (the names of the waits are below it)
+// the Check rows: one per wait due, with its loop and since when
 const checkRows = () => $$('#loops .check-row').map(r => r.textContent.replace(/\s+/g, ' ').trim());
+const checkSel = () => $('#loops .check-row.sel')?.textContent ?? '';
 const hhmm = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 
@@ -346,7 +349,7 @@ test('space on a loop row finishes it once nothing is open; d sends its tasks to
   ok(text('#flash').includes('finished'));
 });
 
-test('. checks waits: a task, or a whole loop at once; the Check row says how many', async () => {
+test('. checks waits: one on its row, or a whole loop on the loop row', async () => {
   const ago = min => Date.now() - min * 60_000;
   await fresh({ stored: { version: 3, templates: { loops: [], tasks: [] }, loops: [{ id: 'L', title: 'Agents' }, { id: 'M', title: 'Quiet' }], tasks: [
     { id: 'a', title: 'Agent A @w', loopId: 'L', done: false, waitingSince: ago(20) },
@@ -354,10 +357,10 @@ test('. checks waits: a task, or a whole loop at once; the Check row says how ma
     { id: 'c', title: 'Agent C @w', loopId: 'L', done: false, waitingSince: ago(CHECK_EVERY - 1) },
     { id: 'd', title: 'Write', loopId: 'M', done: false },
   ] } });
-  eq(checkRows(), ['◷Agents2 of 3 · oldest 20m'], 'C is not due yet');
+  eq(checkRows(), ['◷[Agents]Agent A20m', '◷[Agents]Agent B12m'], 'C is not due yet');
   keys('l', '.');
   ok(task('Agent A').checkedAt > ago(1));
-  eq(checkRows(), ['◷Agents1 of 3 · 12m']);
+  eq(checkRows(), ['◷[Agents]Agent B12m']);
   ok(text('#flash').includes(`again in ${CHECK_EVERY}m`));
   keys('h', '.');
   eq(checkRows(), [], 'the loop row checks all its waits');
@@ -386,46 +389,47 @@ function agentDay() {
     ] };
 }
 
-test('top of the loops pane: Check rows per loop, and the first loop you can do something in is green', async () => {
+test('top of the loops pane: a Check row per wait due, and the first loop you can do something in is green', async () => {
   await fresh({ stored: agentDay() });
   ok(!$('.side') && !$('#today'), 'no Today panel');
-  eq(checkRows(), ['◷Web2 of 3 · oldest 30m', '◷Report1 · 40m']);
+  eq(checkRows(), ['◷[Web]Agent one30m', '◷[Web]Agent two20m', '◷[Report]Waiting on finance40m'], 'in loop order');
   ok($('#loops .row.first').textContent.includes('Loopy'), 'Web is all waiting, so Loopy is green');
   ok($('#loops .row.first').textContent.includes('Review the diff'));
   keys(']');
-  ok($('#loops .check-row.sel').textContent.includes('Web'));
-  keys(']', ']');
+  ok(checkSel().includes('Agent one'));
+  keys(']', ']', ']');
   ok(selected('loops').startsWith('Loopy'), '] ends at the green loop');
   keys('[');
-  ok($('#loops .check-row.sel').textContent.includes('Report'));
+  ok(checkSel().includes('Waiting on finance'));
   $('#loops .check-row').click();
-  ok($('#loops .check-row.sel').textContent.includes('Web'), 'a click puts the cursor there');
+  ok(checkSel().includes('Agent one'), 'a click puts the cursor there');
   $$('#loops .row[data-i]').find(r => r.textContent.includes('Report')).click();
   ok(selected('loops').startsWith('Report'));
   ok(!$('#loops .check-row.sel'));
 });
 
-test('Check rows: the cursor stops on them above the loops; . checks the loop and moves on, l opens it', async () => {
+test('Check rows: the cursor stops on them above the loops; . checks that wait and moves on, l opens it', async () => {
   await fresh({ stored: agentDay() });
   keys('k');
-  ok($('#loops .check-row.sel').textContent.includes('Report'), 'k from the top goes up into the Check rows');
+  ok(checkSel().includes('Waiting on finance'), 'k from the top goes up into the Check rows');
   eq(text('#tasksTitle'), 'Report', 'the middle pane shows its loop');
   ok(!$('#loops .row[data-i].sel'), 'one cursor');
   keys('k');
-  ok($('#loops .check-row.sel').textContent.includes('Web'));
+  ok(checkSel().includes('Agent two'));
   keys('j', 'j');
   ok(selected('loops').startsWith('Web'), 'j past the last one goes on to the loops');
   keys('g');
-  ok($('#loops .check-row.sel').textContent.includes('Web'), 'g: the first Check row');
+  ok(checkSel().includes('Agent one'), 'g: the first Check row');
   keys('l');
   ok(focused('tasks'));
-  ok(selected('tasks').includes('Agent one'), 'l opens the loop on its first wait due');
+  ok(selected('tasks').includes('Agent one'), 'l opens the loop on that wait');
   keys('h', 'g', '.');
-  ok(task('Agent one').checkedAt && task('Agent three').checkedAt, '. checks the whole loop');
-  ok($('#loops .check-row.sel').textContent.includes('Report'), 'and moves on to the next Check row');
-  keys('.');
+  ok(task('Agent one').checkedAt && !task('Agent two').checkedAt, '. checks only that wait');
+  ok(checkSel().includes('Agent two'), 'and moves on to the next Check row');
+  keys('.', 'w');
+  eq(task('Waiting on finance').title, 'Waiting on finance', 'task keys work on a Check row: w ends the wait');
   eq(checkRows(), []);
-  ok(selected('loops').startsWith('Loopy'), 'after the last one: the green loop');
+  ok(selected('loops').startsWith('Report'), 'its loop stays selected');
 });
 
 test('a check-back time is the first look: due, the wait goes to Check, and . drops the time', async () => {
@@ -435,7 +439,7 @@ test('a check-back time is the first look: due, the wait goes to Check, and . dr
   ] } });
   eq(group('now'), '', 'not in Now');
   eq(checkRows().length, 1);
-  ok(checkRows()[0].startsWith('◷Agents1 · '), checkRows()[0]);
+  ok(checkRows()[0].includes('[Agents]Agent A'), checkRows()[0]);
   keys('l');
   ok(selected('tasks').includes('check'), 'the middle pane says so too');
   keys('.');
@@ -446,7 +450,7 @@ test('a check-back time is the first look: due, the wait goes to Check, and . dr
 
 test(':check sets how long a wait goes without a look', async () => {
   await fresh({ stored: agentDay() });
-  eq(checkRows().length, 2);
+  eq(checkRows().length, 3);
   command('check 45');
   eq(checkRows(), [], 'none has gone 45 minutes');
   ok(text('#flash').includes('every 45 min'));
@@ -460,7 +464,7 @@ test(':check sets how long a wait goes without a look', async () => {
 test('] and [ work when typed with Option or AltGr (German keyboards); real shortcuts stay with the browser', async () => {
   await fresh({ stored: agentDay() });
   doc.body.dispatchEvent(event(']', { altKey: true }));   // macOS German: Option+6
-  const onWeb = () => $('#loops .check-row.sel')?.textContent.includes('Web');
+  const onWeb = () => checkSel().includes('Agent one');
   ok(onWeb());
   doc.body.dispatchEvent(event('j', { metaKey: true }));
   ok(onWeb(), 'Cmd+j is not j');
