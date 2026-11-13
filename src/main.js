@@ -9,6 +9,7 @@ import { checkReminders } from './features/reminders.js';
 import { seed } from './features/seed.js';
 import './features/io.js';
 import { initSplitter } from './ui/splitter.js';
+import { isShortcut } from './util.js';
 import { loadView, outlineItems, outlineSelect } from './ui/views.js';
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
@@ -16,7 +17,7 @@ import { loadView, outlineItems, outlineSelect } from './ui/views.js';
 // (inline input, search, modal editor) handle keys in their own elements.
 
 document.addEventListener('keydown', e => {
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (isShortcut(e)) return;
   if (!['normal', 'picker', 'todoist', 'help'].includes(ui.mode)) return;
   const run = commandFor(ui.mode, e.key);
   if (ui.mode !== 'normal') e.preventDefault();   // the pickers and the help take every key while open

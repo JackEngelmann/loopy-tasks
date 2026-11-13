@@ -381,6 +381,17 @@ test(':view i: ] stops at each wait due and at the first thing to do; space work
   ok($('#loops .row.first').textContent.includes('Update the README'), 'the next one turns green');
 });
 
+test('] and [ work when typed with Option or AltGr (German keyboards); real shortcuts stay with the browser', async () => {
+  await fresh({ stored: agentDay() });
+  command('view g');
+  doc.body.dispatchEvent(event(']', { altKey: true }));   // macOS German: Option+6
+  ok(selected('loops').startsWith('Web'), selected('loops'));
+  doc.body.dispatchEvent(event('j', { metaKey: true }));
+  ok(selected('loops').startsWith('Web'), 'Cmd+j is not j');
+  doc.body.dispatchEvent(event('j', { ctrlKey: true }));
+  ok(selected('loops').startsWith('Web'), 'Ctrl+j is not j');
+});
+
 test(':view is remembered; templates always use the classic panes; unknown views say which exist', async () => {
   await fresh({ stored: agentDay() });
   command('view i');

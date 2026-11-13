@@ -17,3 +17,10 @@ export function age(ms, now = Date.now()) {
   const min = Math.floor((now - ms) / 60_000);
   return min < 1 ? 'now' : min < 60 ? `${min}m` : min < 1440 ? `${Math.floor(min / 60)}h` : `${Math.floor(min / 1440)}d`;
 }
+
+// a key with Cmd / Ctrl / Alt is a browser shortcut (copy, reload, ...), unless it typed a
+// character: Option on macOS and AltGr elsewhere type [ ] { } @ | on many layouts (German: Option+5 is [)
+export function isShortcut(e) {
+  const typed = e.key.length === 1 && !e.metaKey && (!e.ctrlKey || e.getModifierState('AltGraph'));
+  return (e.metaKey || e.ctrlKey || e.altKey) && !typed;
+}

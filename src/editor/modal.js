@@ -6,6 +6,7 @@ import { resolveRelative, displayTitle } from '../model/markers.js';
 import { ui, enter, leave, selItem, itemById, loopById } from '../ui/view.js';
 import { render } from '../ui/render/index.js';
 import { initialVim, vimKey, clampNormal } from './vim.js';
+import { isShortcut } from '../util.js';
 
 const box = document.getElementById('noteBox');
 const input = document.getElementById('noteInput');
@@ -122,7 +123,7 @@ input.addEventListener('keydown', e => {
     e.preventDefault();
     return close(true);
   }
-  if (e.metaKey || e.ctrlKey || e.altKey) return;   // copy, select all, ...
+  if (isShortcut(e)) return;   // copy, select all, ...
 
   // ? in normal mode shows the help over the editor; any key closes it again
   if (ui.help) {
