@@ -42,7 +42,7 @@ function doingBlock() {
   const doing = inProgress(state);
   if (!doing.length) return '';
   return '<li class="tier doing">Doing</li>' + doing.map(t => taskRow(t, -1, {
-    selected: cursorOn('doing', t.id), showTag: true, label: age(t.progressSince), cls: 'top-row',
+    selected: cursorOn('doing', t.id), showTag: true, label: age(t.progressSince), cls: 'top-row', editAs: 'doing',
   }).replace(' data-i="-1"', ` data-doing="${esc(t.id)}"`)).join('');
 }
 

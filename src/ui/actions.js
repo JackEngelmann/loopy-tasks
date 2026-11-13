@@ -72,9 +72,12 @@ export function add(below) {
   }
 }
 
+// the input shows only in the row r was pressed on (a task can show in several places:
+// its loop, a Doing row, a Now row, a one-step loop's row), so `where` remembers which
 export function rename() {
   const item = selItem();
-  if (item && item.id && !item.kind) enter('insert', { editing: { kind: 'rename', id: item.id } });
+  const where = ui.focus === 'tasks' ? 'tasks' : topTask() ? 'doing' : 'loop';
+  if (item && item.id && !item.kind) enter('insert', { editing: { kind: 'rename', id: item.id, where } });
 }
 
 export function remove() {

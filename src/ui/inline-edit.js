@@ -13,6 +13,7 @@ export function editInput(value) {
 function commitEdit(value) {
   const ed = ui.editing;
   leave();
+  backOnTop(ed);
   value = value.trim();
   if (!value) return render();
   // relative times only mean something for real tasks; a template has no "now"
@@ -50,7 +51,13 @@ function commitEdit(value) {
   render();
 }
 
+// renaming from a Doing row: the cursor goes back there (it leaves top rows while typing)
+function backOnTop(ed) {
+  if (ed && ed.where === 'doing') ui.topOn = { kind: 'doing', id: ed.id };
+}
+
 function cancelEdit() {
+  backOnTop(ui.editing);
   leave();
   render();
 }

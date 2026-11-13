@@ -19,7 +19,8 @@ export function noteLine(item, cls, full) {
 // notes: show the note below the task (else just ✎);
 // label: text at the end of the row instead of the default ("40m late", or the waiting age);
 // below: a second line instead (Now on top: loop and how late)
-export function taskRow(t, i, { selected, showTag, marks, notes, label, below, cls: extra }) {
+// editAs: where this row is (see rename() in actions.js); only that row shows the rename input
+export function taskRow(t, i, { selected, showTag, marks, notes, label, below, cls: extra, editAs }) {
   const ed = ui.editing;
   const time = timeOf(t);
   const now = nowMinutes();
@@ -43,7 +44,7 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
   const hl = s => marks ? highlight(s, 'tasks') : esc(s);
   const l = loopById(t.loopId);
   const tag = showTag ? `<span class="tag${l ? '' : ' none'}">[${l ? hl(l.title) : '–'}]</span>` : '';
-  const name = ui.mode === 'insert' && ed.kind === 'rename' && ed.id === t.id
+  const name = ui.mode === 'insert' && ed.kind === 'rename' && ed.id === t.id && ed.where === editAs
     ? editInput(t.title)
     : `<span class="name">${hl(displayTitle(t))}</span>`;
   // only meaningful markers; plain tasks leave the column empty

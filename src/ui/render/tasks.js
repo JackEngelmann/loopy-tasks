@@ -17,6 +17,7 @@ export function renderTasks() {
     // highlight next actions (not in templates, and not in the side panels)
     marks: !ui.templates,
     notes: true,
+    editAs: 'tasks',
     cls: ui.focusMode && !isInProgress(t) ? 'quiet' : '',
   }));
   if (adding) rows.splice(ui.editing.at, 0, `<li class="row sel"><span class="check"></span>${editInput('')}</li>`);

@@ -43,7 +43,7 @@ export function renderLoops() {
     const cls = ['row', 'loop', sel(i) && 'sel', l === first && 'first', quiet(l) && 'quiet',
       !ui.templates && status === 'stale' && 'stale',
       !ui.templates && status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
-    const name = ed && ed.kind === 'rename' && ed.id === l.id
+    const name = ed && ed.kind === 'rename' && ed.id === l.id && ed.where === 'loop'
       ? editInput(l.title)
       : `<span class="name">${highlight(l.title, 'loops')}</span>`;
     rows.push(`<li class="${cls}" data-i="${i}">
@@ -85,7 +85,7 @@ function singleRow(l, t, i, selected, ed, isFirst, isQuiet) {
   const cls = ['row', 'loop', 'single', selected && 'sel', isFirst && 'first', isQuiet && 'quiet', isInProgress(t) && 'doing',
     status === 'stale' && 'stale', status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
   const time = timeOf(t);
-  const name = ed && ed.kind === 'rename' && ed.id === t.id
+  const name = ed && ed.kind === 'rename' && ed.id === t.id && ed.where === 'loop'
     ? editInput(t.title)
     : `<span class="name">${highlight(displayTitle(t), 'loops')}</span>`;
   return `<li class="${cls}" data-i="${i}">

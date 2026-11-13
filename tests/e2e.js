@@ -264,6 +264,27 @@ test('nothing on top when nothing is due', async () => {
   ok($('#loops .row.first').textContent.includes('Calm loop'), 'green: the thing to do');
 });
 
+test('r shows one input, in the row it was pressed on, though the task shows in several places', async () => {
+  await fresh();
+  keys('l', 'o');
+  typeInline(`Overdue thing ${hhmm(Math.max(nowMin() - 5, 0))}`);
+  ok(group('now').includes('Overdue thing'), 'on top in Now, and in its loop');
+  keys('r');
+  eq($$('.edit').length, 1);
+  ok($('#tasks .edit'), 'in the middle pane');
+  typeInline('Renamed thing', 'Escape');
+  keys('i', 'h', 'g', 'r');   // in progress: a Doing row on top, and its row in the loop
+  eq($$('.edit').length, 1);
+  ok($('#loops .row[data-doing] .edit'), 'in the Doing row');
+  typeInline('Overdue thing, renamed @p');
+  ok($('#loops .row[data-doing].sel'), 'the cursor is back on the Doing row');
+  keys('G', 'k', 'k', 'S');
+  typeInline('One step');
+  keys('r');
+  eq($$('.edit').length, 1, 'a one-step loop shows its task in the middle pane too');
+  ok($('#loops .row.single .edit'));
+});
+
 test('+20m becomes a clock time', async () => {
   await fresh();
   keys('l', 'o');
