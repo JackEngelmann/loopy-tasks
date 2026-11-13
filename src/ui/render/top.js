@@ -46,11 +46,7 @@ function checkBlock() {
   }).join('');
 }
 
-// the header badge and the tab title count what's in Now
-export function renderNowBadge() {
-  const n = attention(state, nowMinutes()).now.length;
-  const badge = document.getElementById('nowBadge');
-  badge.hidden = !n;
-  badge.textContent = `! ${n}`;
-  setTitleCount(n);
+// the tab title counts what's in Now, for when the tab is in the background
+export function renderTitleCount() {
+  setTitleCount(attention(state, nowMinutes()).now.length);
 }

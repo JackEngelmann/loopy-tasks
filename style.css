@@ -66,19 +66,9 @@ body {
   overflow: hidden;
 }
 
-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  color: var(--text-2);
-  flex-shrink: 0;
-}
-header b { color: var(--text); font-weight: 600; }
-#crumb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-btn {
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-2);
   background: var(--pane);
   border: 1px solid var(--border);
@@ -96,18 +86,10 @@ main {
   /* --loops-w is set by dragging the edge between the panes (splitter.js) */
   grid-template-columns: var(--loops-w, minmax(320px, 42%)) 1fr;
   gap: 8px;
-  padding: 0 8px;
+  padding: 8px 8px 0;   /* no top bar: nothing above the panes can appear and push them down */
   min-height: 0;
 }
 
-.badge {
-  background: var(--stale);
-  color: var(--sel-text);
-  border-radius: 3px;
-  padding: 0 6px;
-  font-size: 12px;
-  font-weight: 600;
-}
 @media (max-width: 1100px) {
   main { grid-template-columns: var(--loops-w, minmax(260px, 45%)) 1fr; }
 }

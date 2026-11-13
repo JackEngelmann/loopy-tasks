@@ -1,4 +1,4 @@
-// Header breadcrumb and the status bar: mode, clipboard, flash and the key hints.
+// The status bar: mode, clipboard, flash and the key hints.
 
 import { displayTitle } from '../../model/markers.js';
 import { ui, PANES, db } from '../view.js';
@@ -20,9 +20,6 @@ function modeLabel() {
 export function renderChrome() {
   PANES.forEach(p => document.getElementById(p + 'Pane').classList.toggle('focused', ui.focus === p));
   document.body.classList.toggle('template-mode', ui.templates);
-
-  // the selection shows in the panes; the header only warns that you're editing templates
-  document.getElementById('crumb').textContent = ui.templates ? 'editing templates' : '';
 
   const cut = db().tasks.find(t => t.id === ui.cutId);
   const mode = document.getElementById('mode');

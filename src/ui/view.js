@@ -53,7 +53,7 @@ export function leave() {
 // Having a `kind` is what tells them apart from your loops: they can't be renamed, noted or deleted.
 export const ALL = { id: null, title: 'All', kind: 'all' };
 export const INBOX = { id: INBOX_ID, title: 'Inbox', kind: 'inbox' };
-export const VIRTUAL = [ALL, INBOX];
+export const VIRTUAL = [INBOX, ALL];
 // stand-in when template mode has no templates yet
 export const NONE = { id: null, title: 'No templates', kind: 'none' };
 
@@ -62,7 +62,7 @@ export const NONE = { id: null, title: 'No templates', kind: 'none' };
 export const db = () => ui.templates ? state.templates : state;
 export const isTemplate = t => state.templates.tasks.includes(t);
 export const virtuals = () => ui.templates ? [] : VIRTUAL;
-// your loops first, so loop j is at index j; All and the Inbox after them
+// your loops first, so loop j is at index j; the Inbox and All after them
 export const loopsList = () => [...db().loops, ...virtuals()];
 // on All or the Inbox rather than one of your loops
 export const onVirtual = () => ui.loopIdx >= db().loops.length;

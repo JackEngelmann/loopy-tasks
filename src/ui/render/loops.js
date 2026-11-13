@@ -1,5 +1,5 @@
 // Left pane: Now, today's times and the Check rows on top (top.js), then your loops, most
-// important first (or the templates in template mode), and All and the Inbox at the bottom.
+// important first (or the templates in template mode), and the Inbox and All at the bottom.
 
 import { openTasks, activeTasks, nextOf, loopStatus } from '../../model/queries.js';
 import { isWaiting, isImportant, displayTitle, timeOf, fmtTime } from '../../model/markers.js';
@@ -69,7 +69,7 @@ export function renderLoops() {
       <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : empty}</span></div>
     </li>`;
   });
-  // All and the Inbox sit at the bottom of the pane: the filler takes the room in between
+  // the Inbox and All sit at the bottom of the pane: the filler takes the room in between
   if (virtualRows.length) rows.push('<li class="filler" aria-hidden="true"></li>', ...virtualRows);
   rows.unshift(topBlock());
   if (!rows.length) rows.push(`<li class="empty">No templates yet. Press o to create one.</li>`);

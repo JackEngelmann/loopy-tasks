@@ -76,14 +76,14 @@ const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMin
 
 // ── Layout and navigation ─────────────────────────────────────────────────────
 
-test('seed data: four loops, two one-step loops, then All and the Inbox at the bottom', async () => {
+test('seed data: four loops, two one-step loops, then the Inbox and All at the bottom', async () => {
   await fresh();
   const rows = $$('#loops .row[data-i]');
   eq(rows.length, 8);
-  eq(rows.slice(-2).map(r => r.querySelector('.name').textContent), ['All', 'Inbox']);
+  eq(rows.slice(-2).map(r => r.querySelector('.name').textContent), ['Inbox', 'All']);
   ok($('#loops .filler'), 'a filler pushes them down');
-  const pane = $('#loops').getBoundingClientRect(), inbox = rows.at(-1).getBoundingClientRect();
-  ok(pane.bottom - inbox.bottom < 12, 'the Inbox sits at the bottom edge');
+  const pane = $('#loops').getBoundingClientRect(), all = rows.at(-1).getBoundingClientRect();
+  ok(pane.bottom - all.bottom < 12, 'All sits at the bottom edge');
   ok(selected('loops').startsWith('Website redesign'), 'the cursor starts on the first loop');
   eq($$('#tasks .row').length, 5);
 });
@@ -103,7 +103,7 @@ test('j selects a loop, l moves into its tasks', async () => {
 test('g / G jump to first and last', async () => {
   await fresh();
   keys('G');
-  ok(selected('loops').startsWith('Inbox'), selected('loops'));
+  ok(selected('loops').startsWith('All'), selected('loops'));
   keys('g');
   ok(selected('loops').startsWith('Website redesign'));
 });
@@ -211,7 +211,6 @@ test('top of the loops pane: times still ahead in one line, Now once their time 
   typeInline(`Overdue thing ${hhmm(Math.max(nowMin() - 5, 0))}`);
   ok(group('now').includes('Overdue thing'), group('now'));
   ok(group('now').includes('Website redesign · 5m late'), group('now'));
-  ok(!$('#nowBadge').hidden);
   ok(doc.title.startsWith('('), 'tab title has the count');
   ok($$('#tasks .row.due').some(r => r.textContent.includes('Overdue thing')), 'overdue in the middle pane too');
   keys(' ');
@@ -224,7 +223,7 @@ test('nothing on top when nothing is due', async () => {
   keys('l', 'o');
   typeInline('Something @i');
   ok(!$('#loops .tier') && !$('#loops .divider'), 'no Now, no Check');
-  ok($('#nowBadge').hidden, 'badge hidden');
+  ok(!doc.title.startsWith('('), 'no count in the tab title');
   ok($('#loops .row.first').textContent.includes('Calm loop'), 'green: the thing to do');
 });
 
@@ -423,7 +422,7 @@ function capture(value, key = 'Enter') {
 
 test('c captures into the Inbox from anywhere; the Inbox is yellow while not empty', async () => {
   await fresh();
-  keys('G');
+  keys('G', 'k');
   ok(selected('loops').startsWith('Inbox'), selected('loops'));
   ok(selected('loops').includes('Nothing to sort'));
   ok(!$('#loops .row.sel').classList.contains('inbox-full'));
@@ -436,7 +435,7 @@ test('c captures into the Inbox from anywhere; the Inbox is yellow while not emp
   ok(focused('tasks'));
   capture('never mind', 'Escape');
   ok(!task('never mind'));
-  const inbox = $$('#loops .row[data-i]').at(-1);
+  const inbox = $$('#loops .row[data-i]').at(-2);
   ok(inbox.classList.contains('inbox-full'));
   eq(inbox.querySelector('.count').textContent, '1');
   ok(inbox.textContent.includes('▸ Call the bank'));
@@ -444,21 +443,21 @@ test('c captures into the Inbox from anywhere; the Inbox is yellow while not emp
 
 test('the Inbox keeps its tasks apart from your loops', async () => {
   await fresh();
-  keys('G', 'l', 'o');
+  keys('G', 'k', 'l', 'o');
   typeInline('Idea for the offsite');
   eq(task('Idea for the offsite').loopId, 'inbox');
   ok(text('#tasks .row').startsWith('▸'), 'each Inbox task stands on its own');
   keys('h', 'g');
   ok(!text('#tasks').includes('Idea for the offsite'), 'not in a loop');
-  keys('G', 'r', 'm', 'd');
+  keys('G', 'k', 'r', 'm', 'd');
   ok(selected('loops').startsWith('Inbox'), 'r, m and d leave the Inbox alone');
   ok(!modalOpen());
-  keys('k');
+  keys('j');
   ok(text('#tasks').includes('[Inbox]'), 'All tags them');
   // sorting: x in the Inbox, p on a loop
-  keys('j', 'l', 'x', 'h', 'g', 'p');
+  keys('k', 'l', 'x', 'h', 'g', 'p');
   eq(task('Idea for the offsite').loopId, loop('Website redesign').id);
-  ok(!$$('#loops .row[data-i]').at(-1).classList.contains('inbox-full'), 'empty again');
+  ok(!$$('#loops .row[data-i]').at(-2).classList.contains('inbox-full'), 'empty again');
 });
 
 test('c is off in template mode', async () => {
@@ -508,14 +507,14 @@ test('z ends a wait (and the other way round); a loop with only not-now tasks is
 test('z is for loops only', async () => {
   await fresh();
   capture('Inbox idea');
-  keys('G', 'l', 'z');
+  keys('G', 'k', 'l', 'z');
   eq(task('Inbox idea').title, 'Inbox idea');
   ok(text('#flash').includes(':park'));
 });
 
 test('/ jumps to matches, n cycles, esc clears', async () => {
   await fresh();
-  keys('G', 'k', 'l', '/');   // All
+  keys('G', 'l', '/');   // All
   eq(text('#mode'), 'SEARCH');
   const input = $('#searchInput');
   input.value = 'review';
@@ -618,7 +617,7 @@ test('a lists Todoist tasks; enter adds the selected one to the loop', async () 
 test('space marks several; picked ones are not offered again', async () => {
   await fresh();
   fakeTodoist(['A', 'B', 'C'].map(c => ({ id: c, content: `Todo ${c}`, project_id: 'P', priority: 1, due: { date: today() } })));
-  keys('G', 'a');
+  keys('G', 'k', 'a');
   await settle();
   keys(' ', ' ', 'Enter');
   eq(data().tasks.filter(t => t.todoistId).map(t => [t.title, t.loopId]), [['Todo A', 'inbox'], ['Todo B', 'inbox']]);
@@ -657,7 +656,7 @@ test(':park on a picked task only removes it, or moves its date', async () => {
     { id: 'b', title: 'Also from Todoist', todoistId: '8', loopId: 'inbox', done: false },
   ] } });
   const sent = fakeTodoist([]);
-  keys('G', 'l');
+  keys('G', 'k', 'l');
   command('park');
   await settle();
   eq(sent.length, 0);
@@ -855,7 +854,7 @@ test('hint line shows the essentials for the pane', async () => {
   ok(!text('#hints').includes('t new from template'));
   keys('T');
   ok(text('#hints').startsWith('T back to loops'));
-  eq(text('#crumb'), 'editing templates');
+  ok(!$('#tplBadge').hidden, 'the status bar says so');
 });
 
 test('? lists every key; esc closes it', async () => {

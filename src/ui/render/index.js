@@ -9,7 +9,7 @@ import { renderModal } from '../../editor/modal.js';
 import { focusInlineEdit } from '../inline-edit.js';
 import { renderLoops } from './loops.js';
 import { renderTasks } from './tasks.js';
-import { renderNowBadge } from './top.js';
+import { renderTitleCount } from './top.js';
 import { syncCheck } from '../attention.js';
 import { renderChrome } from './chrome.js';
 import { renderHelp } from './help.js';
@@ -25,7 +25,7 @@ export function render() {
   renderModal();
   renderLoops();
   renderTasks();
-  renderNowBadge();
+  renderTitleCount();
   renderChrome();
   renderSearchBox();
   renderCmdBox();
