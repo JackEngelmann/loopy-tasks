@@ -52,7 +52,7 @@
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 .time, .count, .counts, .wait-age, .when, kbd, .badge,
-footer .mode, #searchBox, #cmdBox, #captureBox, #searchInfo {
+footer .mode, #searchBox, #cmdBox, #captureBox, #nextCheckBox, #searchInfo {
   font-family: var(--mono);
 }
 
@@ -315,8 +315,8 @@ footer .mode {
   font-weight: 600;
 }
 footer .clip { color: var(--cut); }
-#searchBox, #cmdBox, #captureBox { color: var(--text); }
-#searchBox input, #cmdBox input, #captureBox input {
+#searchBox, #cmdBox, #captureBox, #nextCheckBox { color: var(--text); }
+#searchBox input, #cmdBox input, #captureBox input, #nextCheckBox input {
   width: 28ch;
   font: inherit;
   color: var(--text);

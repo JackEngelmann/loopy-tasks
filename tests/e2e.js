@@ -74,6 +74,8 @@ function group(name) {
 // the Check rows: one per wait due, with its loop and since when
 const checkRows = () => $$('#loops .check-row').map(r => r.textContent.replace(/\s+/g, ' ').trim());
 const checkSel = () => $('#loops .check-row.sel')?.textContent ?? '';
+// times like +10m are capped at 23:59, so just before midnight they're due right away
+const nearMidnight = () => nowMin() > 23 * 60 + 45;
 const hhmm = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 
@@ -246,7 +248,11 @@ test('top of the loops pane: times still ahead in one line, Now once their time 
   await fresh();
   keys('l', 'o');
   typeInline('Check agent @w +10m');
-  ok(text('#loops .timeline').includes('◷ Check agent'), text('#loops .timeline'));   // unless it's just before midnight
+  const timeline = () => $('#loops .timeline')?.textContent ?? '';
+  ok(!timeline().includes('Check agent'), 'a wait\'s time is no appointment: not in the times on top');
+  keys('o');
+  typeInline('Call Anna +10m');
+  ok(nearMidnight() || timeline().includes('Call Anna'), timeline());
   keys('o');
   typeInline(`Overdue thing ${hhmm(Math.max(nowMin() - 5, 0))}`);
   ok(group('now').includes('Overdue thing'), group('now'));
@@ -446,6 +452,27 @@ test('a check-back time is the first look: due, the wait goes to Check, and . dr
   eq(task('Agent A').title, 'Agent A @w', 'the time is gone');
   eq(checkRows(), []);
   ok(text('#flash').includes(`again in ${CHECK_EVERY}m`));
+});
+
+test('ctrl+. checks a wait and asks when to look next; the time it gets brings it back to Check', async () => {
+  await fresh({ stored: agentDay() });
+  keys('g');   // Check: Agent one
+  doc.body.dispatchEvent(event('.', { ctrlKey: true }));
+  ok(!$('#nextCheckBox').hidden, 'the input opens');
+  eq(text('#mode'), 'CHECKED');
+  $('#nextCheckInput').value = '1h';
+  $('#nextCheckInput').dispatchEvent(event('Enter'));
+  const at = hhmm(Math.min(nowMin() + 60, 23 * 60 + 59));
+  eq(task('Agent one').title, `Agent one @w ${at}`, 'its check-back time');
+  ok(nearMidnight() || !checkRows().some(r => r.includes('Agent one')), 'out of Check until then');
+  ok(!($('#loops .timeline')?.textContent ?? '').includes('Agent one'), 'and not among today\'s times: it is no appointment');
+  ok(text('#flash').includes(`next look at ${at}`));
+  ok(nearMidnight() || checkSel().includes('Agent two'), 'on to the next Check row, as with .');
+  doc.body.dispatchEvent(event('.', { ctrlKey: true }));
+  $('#nextCheckInput').value = 'later';
+  $('#nextCheckInput').dispatchEvent(event('Enter'));
+  ok(text('#flash').includes('not a time'));
+  eq(task('Agent two').title, 'Agent two @w', 'nothing changed');
 });
 
 test(':check sets how long a wait goes without a look', async () => {

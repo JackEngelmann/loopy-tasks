@@ -18,6 +18,7 @@ import { startSearch, searchNext } from '../features/search.js';
 import { toggleTemplates, openPicker, pickerMove, pickerChoose } from '../features/templates.js';
 import { startCommand } from '../features/cmdline.js';
 import { startCapture } from '../features/capture.js';
+import { startNextCheck } from '../features/next-check.js';
 import { nextAttention, toggleFocus } from './attention.js';
 import { openTodoist, todoistMove, todoistMark, todoistChoose } from '../features/todoist.js';
 import { openModal } from '../editor/modal.js';
@@ -52,6 +53,7 @@ export const COMMANDS = [
   { modes: ['normal'], hint: 'space', label: 'done', show: inTasks, essential: true, keys: { ' ': act.toggleDone } },
   { modes: ['normal'], hint: 'space', label: 'finish', show: inLoops, help: ['space', 'done; on a loop: finish it'] },
   { modes: ['normal'], hint: '.', label: 'checked', show: notTemplates, essential: true, keys: { '.': act.markChecked } },
+  { modes: ['normal'], hint: 'ctrl+.', label: 'checked, next look at…', show: notTemplates, keys: { 'C-.': startNextCheck } },
   { modes: ['normal'], hint: 'S', label: 'one-step loop', show: notTemplates, keys: { S: act.addSingle } },
   { modes: ['normal'], hint: 'w', label: 'waiting', show: inTasks, essential: true, keys: { w: () => act.toggleMarker('@w') } },
   { modes: ['normal'], hint: 'i', label: 'in progress', show: notTemplates, essential: true, keys: { i: () => act.toggleMarker('@p') } },
@@ -100,6 +102,9 @@ export const COMMANDS = [
   { modes: ['command'], hint: ':import', label: 'replace from file', help: [':import', 'replace all data from a file'] },
   { modes: ['command'], hint: 'enter', label: 'run' },
   { modes: ['command'], hint: 'esc', label: 'cancel' },
+  { modes: ['next-check'], hint: '1h / 20m / 14:30', label: 'when to look next' },
+  { modes: ['next-check'], hint: 'enter', label: 'set' },
+  { modes: ['next-check'], hint: 'esc', label: 'cancel' },
   { modes: ['capture'], hint: 'enter', label: 'add to the Inbox' },
   { modes: ['capture'], hint: 'esc', label: 'cancel' },
   { modes: ['search'], hint: 'enter', label: 'confirm' },

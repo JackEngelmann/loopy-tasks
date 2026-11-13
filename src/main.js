@@ -16,10 +16,14 @@ import { loadCheckEvery } from './features/check-every.js';
 // normal and picker mode keys come from the command table; the typing modes
 // (inline input, search, modal editor) handle keys in their own elements.
 
+// ctrl+key reaches the command table as "C-key" (ctrl+. sets the next check); unbound ones,
+// and other shortcuts, stay with the browser
 document.addEventListener('keydown', e => {
-  if (isShortcut(e)) return;
+  const key = !isShortcut(e) ? e.key : e.ctrlKey && !e.metaKey && !e.altKey ? `C-${e.key}` : null;
+  if (key === null) return;
   if (!['normal', 'picker', 'todoist', 'help'].includes(ui.mode)) return;
-  const run = commandFor(ui.mode, e.key);
+  const run = commandFor(ui.mode, key);
+  if (!run && key.startsWith('C-')) return;
   if (ui.mode !== 'normal') e.preventDefault();   // the pickers and the help take every key while open
   if (!run) return;
   e.preventDefault();

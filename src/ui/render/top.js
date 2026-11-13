@@ -24,10 +24,11 @@ export function topBlock() {
       rows.push(taskRow(t, -1, { below, cls: 'top-row' }).replace(' data-i="-1"', ''));
     });
   }
-  const ahead = timedTasks(state.tasks).filter(t => timeOf(t) > now);
+  // appointments only: a wait's time is when to look next, and shows in Check when it comes
+  const ahead = timedTasks(state.tasks).filter(t => timeOf(t) > now && !isWaiting(t));
   if (ahead.length) {
     rows.push(`<li class="timeline"><span class="label">Today</span>${ahead.map(t =>
-      `<span><span class="time">${fmtTime(timeOf(t))}</span> ${isWaiting(t) ? '◷ ' : ''}${esc(displayTitle(t))}</span>`).join('')}</li>`);
+      `<span><span class="time">${fmtTime(timeOf(t))}</span> ${esc(displayTitle(t))}</span>`).join('')}</li>`);
   }
   rows.push(checkBlock());
   if (rows.some(Boolean)) rows.push('<li class="divider">Loops</li>');

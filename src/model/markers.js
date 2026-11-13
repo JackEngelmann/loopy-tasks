@@ -33,5 +33,17 @@ export function resolveRelative(title, now = nowMinutes()) {
   return stripTime(title).replace(REL_RE, `$1${at}`);
 }
 
+// a time typed for "when": "14:30", or from now: "1h", "20m", "1h30", "+20m", "20" (minutes);
+// capped at 23:59 like +20m in titles. null if it isn't one
+export function parseWhen(s, now = nowMinutes()) {
+  s = s.trim();
+  let m = s.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (m) return +m[1] * 60 + +m[2];
+  m = s.match(/^\+?(?:(\d+)h(?:(\d+)m?)?|(\d+)m?)$/);
+  if (!m) return null;
+  const mins = m[3] !== undefined ? +m[3] : +m[1] * 60 + +(m[2] || 0);
+  return Math.min(now + mins, 23 * 60 + 59);
+}
+
 // the title as shown: markers and the time are displayed separately
 export const displayTitle = t => ['@w', '@p', '@n'].reduce(stripToken, t.title.replace(TIME_RE, '$1'));

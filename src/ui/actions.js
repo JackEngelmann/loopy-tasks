@@ -1,7 +1,7 @@
 // What the normal-mode keys do. Each changes ui and/or the data; the caller re-renders.
 
 import { state, mutate, undo as undoChange } from '../model/store.js';
-import { toggleToken, stripToken, stripTime, hasToken, isWaiting, isNotNow, timeOf } from '../model/markers.js';
+import { toggleToken, stripToken, stripTime, hasToken, isWaiting, isNotNow, timeOf, fmtTime } from '../model/markers.js';
 import { INBOX_ID, CHECK_EVERY, openTasks } from '../model/queries.js';
 import { ui, enter, PANES, db, loopsList, onVirtual, currentLoop, currentTasks, selTask, selItem, topTask, loopById } from './view.js';
 import { swap } from '../util.js';
@@ -126,14 +126,29 @@ function finishLoop() {
 // all of that loop's waits at once (several agents in one project are looked at together)
 export function markChecked() {
   if (ui.templates) return;
+  const waits = waitsHere();
+  if (!waits.length) ui.flash = { text: 'nothing waiting here' };
+  else checkWaits(waits);
+}
+
+// the waits . and ctrl+. act on: the task under the cursor, or all of a loop's on its row
+export function waitsHere() {
   const one = ui.focus === 'tasks' || currentLoop().single || !!topTask();
-  const waits = (one ? [selTask()] : currentTasks()).filter(t => t && isWaiting(t));
-  if (!waits.length) { ui.flash = { text: 'nothing waiting here' }; return; }
+  return (one ? [selTask()] : currentTasks()).filter(t => t && isWaiting(t));
+}
+
+// looked at them: they ask again after CHECK_EVERY minutes, or at `at` (minutes of the day,
+// from ctrl+.), which becomes their check-back time
+export function checkWaits(waits, at = null) {
   const now = Date.now();
   const before = checkTasks().map(t => t.id);
-  mutate(() => waits.forEach(t => { t.checkedAt = now; t.title = stripTime(t.title); }));
+  mutate(() => waits.forEach(t => {
+    t.checkedAt = now;
+    t.title = stripTime(t.title) + (at === null ? '' : ` ${fmtTime(at)}`);
+  }));
   if (ui.topOn && ui.topOn.kind === 'check') afterCheck(before);
-  ui.flash = { text: `checked${waits.length > 1 ? ` ${waits.length}` : ''} · again in ${CHECK_EVERY}m` };
+  const n = waits.length > 1 ? ` ${waits.length}` : '';
+  ui.flash = { text: at === null ? `checked${n} · again in ${CHECK_EVERY}m` : `checked${n} · next look at ${fmtTime(at)}` };
 }
 
 // S: a one-step loop, a single thing to do with its own place in your order

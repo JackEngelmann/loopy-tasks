@@ -15,6 +15,7 @@ import { renderChrome } from './chrome.js';
 import { renderHelp } from './help.js';
 import { renderCmdBox } from '../../features/cmdline.js';
 import { renderCaptureBox } from '../../features/capture.js';
+import { renderNextCheckBox } from '../../features/next-check.js';
 
 export function render() {
   clamp();
@@ -32,6 +33,7 @@ export function render() {
   renderSearchBox();
   renderCmdBox();
   renderCaptureBox();
+  renderNextCheckBox();
   renderHelp();
   document.getElementById('backdrop').hidden = !['modal', 'picker', 'todoist', 'help'].includes(ui.mode);
   renderNotifyBtn();

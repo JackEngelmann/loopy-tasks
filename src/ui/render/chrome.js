@@ -15,7 +15,7 @@ function modeLabel() {
   }
   // normal mode needs no label: the focused pane has the highlighted border
   if (ui.mode === 'normal' && ui.focusMode) return 'FOCUS';
-  return { insert: 'INSERT', search: 'SEARCH', picker: 'TEMPLATE', todoist: 'TODOIST', command: 'COMMAND', capture: 'INBOX', help: 'HELP' }[ui.mode] || '';
+  return { insert: 'INSERT', search: 'SEARCH', picker: 'TEMPLATE', todoist: 'TODOIST', command: 'COMMAND', capture: 'INBOX', 'next-check': 'CHECKED', help: 'HELP' }[ui.mode] || '';
 }
 
 export function renderChrome() {

@@ -1,7 +1,7 @@
 // unit tests for the pure modules
 
 import { test, eq, ok } from './harness.js';
-import { toggleToken, isWaiting, timeOf, resolveRelative, displayTitle } from '../src/model/markers.js';
+import { toggleToken, isWaiting, timeOf, resolveRelative, displayTitle, parseWhen } from '../src/model/markers.js';
 import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders, attention, notNowLast, checkDue, dueSince, CHECK_EVERY, INBOX_ID } from '../src/model/queries.js';
 import { migrate, stampWaiting, settle, SCHEMA_VERSION } from '../src/model/store.js';
 import { parseImport } from '../src/model/import.js';
@@ -33,6 +33,17 @@ test('markers: relative times', () => {
   eq(resolveRelative('Ping 09:00 +15m', 600), 'Ping 10:15', 'replaces an existing time');
   eq(resolveRelative('Late +3h', 23 * 60), 'Late 23:59', 'capped at midnight');
   eq(resolveRelative('+1 for the idea', 600), '+1 for the idea', 'needs a unit');
+});
+
+test('markers: when, typed (ctrl+.)', () => {
+  eq(parseWhen('14:30', 600), 870);
+  eq(parseWhen('1h', 600), 660);
+  eq(parseWhen('+20m', 600), 620);
+  eq(parseWhen('1h30', 600), 690);
+  eq(parseWhen('20', 600), 620, 'plain minutes');
+  eq(parseWhen('3h', 23 * 60), 23 * 60 + 59, 'capped at midnight');
+  eq(parseWhen('soon', 600), null);
+  eq(parseWhen('25:00', 600), null);
 });
 
 // ── Queries ───────────────────────────────────────────────────────────────────
