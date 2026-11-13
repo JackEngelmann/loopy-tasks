@@ -4,20 +4,19 @@
 import { isWaiting, isImportant, isNotNow, timeOf } from './markers.js';
 
 // the Inbox is a fixed loop id: things captured but not sorted yet. It isn't a loop of
-// your own (no next action, never stale); its tasks stand on their own, like standalone ones.
+// your own (no next action, never stale); each of its tasks stands on its own.
 export const INBOX_ID = 'inbox';
 
-// id null means every loop (and tasks without one)
+// id null means every loop (and the timed tasks without one)
 export const openTasks = (d, id) => d.tasks.filter(t => !t.done && (id === null || t.loopId === id));
 // tasks that aren't part of a loop
-export const standaloneTasks = d => d.tasks.filter(t => !t.done && t.loopId === null);
 // open tasks that are work: not-now ones are kept, but don't count anywhere
 export const activeTasks = tasks => tasks.filter(t => !isNotNow(t));
 // a list as the middle pane shows it: the work first, then what's not for now
 export const notNowLast = tasks => [...activeTasks(tasks), ...tasks.filter(isNotNow)];
 
 // a loop's next action is its first open, non-waiting task; reorder with J/K to change it.
-// tasks without a loop (and Inbox tasks) stand on their own, so each counts as a next action.
+// timed tasks without a loop, and Inbox tasks, stand on their own: each counts as a next action.
 export const doable = (d, id) => openTasks(d, id).filter(t => !isWaiting(t) && !isNotNow(t));
 export const nextOf = (d, id) => doable(d, id)[0];
 export function isNext(d, t) {
@@ -33,6 +32,11 @@ export function loopStatus(d, l) {
 }
 
 // not-now tasks have no appointment: no Today, no reminder
+// a wait without a check-back time wants a look every CHECK_EVERY minutes; . resets it
+export const CHECK_EVERY = 10;
+export const checkDue = (t, nowMs = Date.now()) => !t.done && isWaiting(t) && !isNotNow(t) && timeOf(t) === null
+  && nowMs - (t.checkedAt ?? t.waitingSince ?? nowMs) >= CHECK_EVERY * 60_000;
+
 export const timedTasks = tasks => tasks.filter(t => !t.done && !isNotNow(t) && timeOf(t) !== null)
   .sort((a, b) => timeOf(a) - timeOf(b));
 
@@ -41,20 +45,22 @@ export const timedTasks = tasks => tasks.filter(t => !t.done && !isNotNow(t) && 
 // in its most urgent group:
 //   now        its time has come (overdue tasks and check-backs of waiting ones)
 //   soon       its time is within SOON minutes
+//   check      waiting without a check-back time, not looked at for CHECK_EVERY minutes
 //   important  marked @i
-//   later      timed later today, or waiting without a check-back time (longest first)
+//   later      timed later today, or waiting and checked recently (longest first)
 // Times have no date: everything is today.
 
 export const SOON = 30;
 
-export function attention(d, now) {
+export function attention(d, now, nowMs = Date.now()) {
   const open = d.tasks.filter(t => !t.done && !isNotNow(t));
   const timed = timedTasks(open);
   const groups = {
     now: timed.filter(t => timeOf(t) <= now),
     soon: timed.filter(t => timeOf(t) > now && timeOf(t) <= now + SOON),
   };
-  const taken = new Set([...groups.now, ...groups.soon]);
+  groups.check = open.filter(t => checkDue(t, nowMs));
+  const taken = new Set([...groups.now, ...groups.soon, ...groups.check]);
   groups.important = open.filter(t => isImportant(t) && !taken.has(t));
   groups.important.forEach(t => taken.add(t));
   groups.later = [

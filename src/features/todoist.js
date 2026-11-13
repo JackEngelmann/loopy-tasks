@@ -93,7 +93,7 @@ export function todoistChoose() {
   const loop = currentLoop();
   mutate(() => chosen.forEach(tt =>
     state.tasks.push({ id: uid(), loopId: loop.id, done: false, createdAt: Date.now(), ...fromTodoist(tt) })));
-  ui.flash = { text: `added ${chosen.length === 1 ? `"${chosen[0].content}"` : `${chosen.length} tasks`} to ${loop.id ? loop.title : 'Standalone'}` };
+  ui.flash = { text: `added ${chosen.length === 1 ? `"${chosen[0].content}"` : `${chosen.length} tasks`} to ${loop.id ? loop.title : 'All'}` };
 }
 
 // "Mon 16 Nov"

@@ -36,7 +36,11 @@ export function renderToday() {
       row(t, isWaiting(t) ? `check back ${inMin}` : inMin, 'soon-row');
     });
   }
-  if (!g.now.length && !g.soon.length) {
+  if (g.check.length) {
+    tier('check', 'Check');
+    g.check.forEach(t => row(t, t.checkedAt ? `checked ${age(t.checkedAt)} ago` : waitedFor(t)));
+  }
+  if (!g.now.length && !g.soon.length && !g.check.length) {
     const next = g.later.find(t => timeOf(t) !== null);
     rows.push(`<li class="calm">Nothing needs you right now.${next
       ? `<br>Next: <b><span class="time">${fmtTime(timeOf(next))}</span> ${esc(displayTitle(next))}</b> in ${duration(timeOf(next) - now)}`

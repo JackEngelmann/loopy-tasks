@@ -1,7 +1,7 @@
 // UI state: what's selected, which mode the keyboard is in, and the lists as the panes show them.
 
 import { state } from '../model/store.js';
-import { openTasks, standaloneTasks, notNowLast, INBOX_ID } from '../model/queries.js';
+import { openTasks, notNowLast, INBOX_ID } from '../model/queries.js';
 
 // navigable panes; the right column is informational only
 export const PANES = ['loops', 'tasks'];
@@ -47,13 +47,12 @@ export function leave() {
 }
 
 // virtual loops above the real ones: "All" shows every task, "Inbox" what's captured but
-// not sorted yet, "Standalone" the tasks without a loop. All and Standalone have no id, so
-// tasks created or pasted there get no loop; Inbox tasks get INBOX_ID. Having a `kind` is
-// what tells them apart from your loops: they can't be renamed, noted or deleted.
+// not sorted yet. All has no id: a task created or pasted there gets no loop, which only a
+// timed task keeps (store.js settle() sends the rest to the Inbox); Inbox tasks get INBOX_ID.
+// Having a `kind` is what tells them apart from your loops: they can't be renamed, noted or deleted.
 export const ALL = { id: null, title: 'All', kind: 'all' };
 export const INBOX = { id: INBOX_ID, title: 'Inbox', kind: 'inbox' };
-export const STANDALONE = { id: null, title: 'Standalone', kind: 'standalone' };
-export const VIRTUAL = [ALL, INBOX, STANDALONE];
+export const VIRTUAL = [ALL, INBOX];
 // stand-in when template mode has no templates yet
 export const NONE = { id: null, title: 'No templates', kind: 'none' };
 
@@ -70,12 +69,14 @@ export const loopById = id => id === INBOX_ID ? INBOX
 export const itemById = id => loopById(id) || db().tasks.find(t => t.id === id);
 
 // open tasks of a loop, real or virtual, in order (waiting ones included), not-now ones last
-export const tasksOf = loop => notNowLast(loop.kind === 'standalone' ? standaloneTasks(db()) : openTasks(db(), loop.id));
+export const tasksOf = loop => notNowLast(openTasks(db(), loop.id));
+// a one-step loop's task; on the loop's row, keys act on it (rename, note, done, markers)
+export const singleTask = loop => loop.single ? openTasks(db(), loop.id)[0] || null : null;
 // middle pane; done tasks are hidden
 export const currentTasks = () => tasksOf(currentLoop());
-export const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] : null;
-// the loop or task the cursor is on
-export const selItem = () => ui.focus === 'loops' ? currentLoop() : selTask();
+export const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] : singleTask(currentLoop());
+// the loop or task the cursor is on (a one-step loop is its task)
+export const selItem = () => ui.focus === 'loops' ? singleTask(currentLoop()) || currentLoop() : selTask();
 
 // narrow windows (e.g. half a screen) fold the right column into a summary line
 export const narrow = window.matchMedia('(max-width: 1100px)');

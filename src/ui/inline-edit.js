@@ -1,7 +1,7 @@
 // Insert mode: the one-line input that o, O and r open in a row. Enter saves, esc cancels.
 
 import { mutate } from '../model/store.js';
-import { resolveRelative, isNotNow, hasToken } from '../model/markers.js';
+import { resolveRelative, isNotNow, hasToken, displayTitle } from '../model/markers.js';
 import { ui, leave, db, virtuals, currentLoop, currentTasks, loopById, itemById } from './view.js';
 import { render } from './render/index.js';
 import { esc, uid } from '../util.js';
@@ -16,11 +16,18 @@ function commitEdit(value) {
   value = value.trim();
   if (!value) return render();
   // relative times only mean something for real tasks; a template has no "now"
-  const isTask = ed.kind === 'new-task' || (ed.kind === 'rename' && !loopById(ed.id));
+  const isTask = ed.kind === 'new-task' || ed.kind === 'new-single' || (ed.kind === 'rename' && !loopById(ed.id));
   if (isTask && !ui.templates) value = resolveRelative(value);
 
   if (ed.kind === 'new-loop') {
     mutate(() => db().loops.splice(ed.at, 0, { id: uid(), title: value, createdAt: Date.now() }));
+    ui.loopIdx = virtuals().length + ed.at;
+  } else if (ed.kind === 'new-single') {
+    const loop = { id: uid(), title: displayTitle({ title: value }), single: true, createdAt: Date.now() };
+    mutate(() => {
+      db().loops.splice(ed.at, 0, loop);
+      db().tasks.push({ id: uid(), title: value, loopId: loop.id, done: false, createdAt: Date.now() });
+    });
     ui.loopIdx = virtuals().length + ed.at;
   } else if (ed.kind === 'new-task') {
     // added among the not-now tasks, it's one of them
@@ -35,7 +42,7 @@ function commitEdit(value) {
       else tasks.splice(anchor + (ed.below ? 1 : 0), 0, task);
     });
     ui.focus = 'tasks';
-    ui.taskIdx = currentTasks().indexOf(task);
+    ui.taskIdx = Math.max(0, currentTasks().indexOf(task));   // -1 when it went to the Inbox
   } else if (ed.kind === 'rename') {
     const item = itemById(ed.id);
     if (item) mutate(() => { item.title = value; });

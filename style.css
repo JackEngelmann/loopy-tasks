@@ -307,6 +307,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .tier.soon { color: var(--text); }
 .tier.important { color: var(--imp); }
 .tier.later { color: var(--text-3); }
+.tier.check { color: var(--wait); }
 /* not now: kept with the loop, but quiet */
 .tier.not-now { color: var(--text-3); margin-top: 10px; }
 .row.not-now .name, .row.not-now .time { color: var(--text-3); }

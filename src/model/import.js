@@ -1,6 +1,7 @@
 // Reading an export file back in (pure).
 
 import { migrate } from './store.js';
+import { INBOX_ID } from './queries.js';
 
 // keep only well-formed entries, brought up to the current schema;
 // throws if the file isn't an export at all
@@ -26,6 +27,6 @@ function cleanLoops(rawLoops, rawTasks) {
   const ids = new Set(loops.map(l => l.id));
   const tasks = rawTasks
     .filter(t => t && str(t.id) && str(t.title))
-    .map(t => ({ ...t, done: !!t.done, loopId: ids.has(t.loopId) ? t.loopId : null }));
+    .map(t => ({ ...t, done: !!t.done, loopId: ids.has(t.loopId) || t.loopId === INBOX_ID ? t.loopId : null }));
   return { loops, tasks };
 }

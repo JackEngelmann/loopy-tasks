@@ -1,7 +1,9 @@
 // The data and every change to it. `state` is never reassigned (other modules hold it),
 // so undo and import swap its contents with replace().
 
-import { isWaiting } from './markers.js';
+import { isWaiting, timeOf, displayTitle } from './markers.js';
+import { INBOX_ID } from './queries.js';
+import { uid } from '../util.js';
 
 export const STORAGE_KEY = 'loops-v1';
 
@@ -9,7 +11,7 @@ export const STORAGE_KEY = 'loops-v1';
 // stored data (and exports) carry `version`; data without one is version 0.
 // MIGRATIONS[n] upgrades version n to n + 1. To change the data shape, append one.
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 // templates have the same shape as the main data: loops with tasks
 export const emptyState = () => ({ version: SCHEMA_VERSION, loops: [], tasks: [], templates: { loops: [], tasks: [] } });
@@ -20,6 +22,15 @@ const MIGRATIONS = [
   d => { d.templates = d.templates || { loops: [], tasks: [] }; },
   // 1 → 2: waiting tasks remember since when; ones that were already waiting count from now
   d => stampWaiting(d),
+  // 2 → 3: no more Standalone. A task without a loop becomes a one-step loop of its own,
+  // at the end; timed ones stay without a loop, they belong to the clock
+  d => {
+    d.tasks.filter(t => !t.done && t.loopId === null && timeOf(t) === null).forEach(t => {
+      const loop = { id: uid(), title: displayTitle(t), single: true, createdAt: t.createdAt || Date.now() };
+      d.loops.push(loop);
+      t.loopId = loop.id;
+    });
+  },
 ];
 
 export function migrate(d) {
@@ -36,6 +47,7 @@ export function load() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch {}
   replace(saved ? migrate(saved) : emptyState());
+  settle(state);
 }
 
 export function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
@@ -51,6 +63,7 @@ export function mutate(fn) {
   if (history.length > 200) history.shift();
   fn();
   stampWaiting(state);
+  settle(state);
   persist();
 }
 
@@ -64,6 +77,29 @@ export function undo() {
 export function stampWaiting(d, now = Date.now()) {
   d.tasks.forEach(t => {
     if (isWaiting(t) && !t.done) t.waitingSince = t.waitingSince || now;
-    else delete t.waitingSince;
+    else { delete t.waitingSince; delete t.checkedAt; }
   });
+}
+
+// the rules every change ends with (your loops only; templates never run them):
+// - a task without a loop needs a time (it belongs to the clock); without one it goes to the Inbox
+// - a one-step loop lives as long as its one task and is named after it;
+//   a second task makes it a normal loop
+export function settle(d) {
+  const ids = new Set(d.loops.map(l => l.id));
+  d.tasks.forEach(t => {
+    if (t.done || t.loopId === INBOX_ID || ids.has(t.loopId)) return;
+    t.loopId = timeOf(t) === null ? INBOX_ID : null;
+  });
+  const gone = new Set();
+  d.loops.forEach(l => {
+    if (!l.single) return;
+    const open = d.tasks.filter(t => t.loopId === l.id && !t.done);
+    if (!open.length) gone.add(l.id);
+    else if (open.length > 1) delete l.single;
+    else l.title = displayTitle(open[0]);
+  });
+  if (!gone.size) return;
+  d.loops = d.loops.filter(l => !gone.has(l.id));
+  d.tasks = d.tasks.filter(t => !gone.has(t.loopId));
 }

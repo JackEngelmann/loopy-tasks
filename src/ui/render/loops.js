@@ -1,8 +1,8 @@
-// Left pane: All, Inbox and Standalone, then the loops (or the templates in template mode).
+// Left pane: All and Inbox, then the loops (or the templates in template mode).
 
 import { openTasks, activeTasks, nextOf, loopStatus } from '../../model/queries.js';
-import { isWaiting, isImportant, displayTitle } from '../../model/markers.js';
-import { ui, db, virtuals, tasksOf, VIRTUAL } from '../view.js';
+import { isWaiting, isImportant, displayTitle, timeOf, fmtTime } from '../../model/markers.js';
+import { ui, db, virtuals, tasksOf, singleTask, VIRTUAL } from '../view.js';
 import { highlight } from '../../features/search.js';
 import { editInput } from '../inline-edit.js';
 import { noteLine } from './rows.js';
@@ -11,11 +11,12 @@ import { esc } from '../../util.js';
 export function renderLoops() {
   const d = db();
   const ed = ui.mode === 'insert' ? ui.editing : null;
-  const sel = i => i === ui.loopIdx && !(ed && ed.kind === 'new-loop');
+  const adding = ed && (ed.kind === 'new-loop' || ed.kind === 'new-single');
+  const sel = i => i === ui.loopIdx && !adding;
 
   const rows = virtuals().map((l, i) => {
     const ts = activeTasks(tasksOf(l));   // not-now tasks don't count
-    const listed = l.kind !== 'all';
+    const listed = l.kind === 'inbox';
     // anything in the Inbox still needs sorting
     const cls = ['row', 'virtual', `virtual-${l.kind}`, listed && 'loop', sel(i) && 'sel',
       l.kind === 'inbox' && ts.length && 'inbox-full',
@@ -24,7 +25,7 @@ export function renderLoops() {
     if (!listed) return `<li class="${cls}" data-i="${i}">${name}</li>`;
     // like a loop: the first task and how many follow
     const first = ts[0];
-    const empty = l.kind === 'inbox' ? 'Nothing to sort' : 'No standalone tasks';
+    const empty = 'Nothing to sort';
     return `<li class="${cls}" data-i="${i}">
       <div class="loop-line">${name}</div>
       <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : empty}</span></div>
@@ -33,6 +34,8 @@ export function renderLoops() {
 
   d.loops.forEach((l, j) => {
     const i = virtuals().length + j;
+    const single = singleTask(l);
+    if (single) return rows.push(singleRow(l, single, i, sel(i), ed));
     const open = activeTasks(openTasks(d, l.id));
     const next = nextOf(d, l.id);
     const status = loopStatus(d, l);
@@ -58,8 +61,23 @@ export function renderLoops() {
       ${noteLine(l, 'loop-note')}
     </li>`);
   });
-  if (ed && ed.kind === 'new-loop') rows.splice(virtuals().length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
+  if (adding) rows.splice(virtuals().length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
   if (!rows.length) rows.push(`<li class="empty">No templates yet. Press o to create one.</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
   document.getElementById('loopsTitle').textContent = ui.templates ? 'Templates' : 'Loops';
+}
+
+// a one-step loop is one line: its task, with the task's markers
+function singleRow(l, t, i, selected, ed) {
+  const status = loopStatus(db(), l);
+  const cls = ['row', 'loop', 'single', selected && 'sel',
+    status === 'stale' && 'stale', status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
+  const time = timeOf(t);
+  const name = ed && ed.kind === 'rename' && ed.id === t.id
+    ? editInput(t.title)
+    : `<span class="name">${highlight(displayTitle(t), 'loops')}</span>`;
+  return `<li class="${cls}" data-i="${i}">
+    <div class="loop-line"><span class="check">${isWaiting(t) ? '◷' : ''}</span>${isImportant(t) ? '<span class="star">★</span>' : ''}${time !== null ? `<span class="time">${fmtTime(time)}</span>` : ''}${name}</div>
+    ${noteLine(t, 'loop-note')}
+  </li>`;
 }

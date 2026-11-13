@@ -1,8 +1,8 @@
 // What the normal-mode keys do. Each changes ui and/or the data; the caller re-renders.
 
-import { mutate, undo as undoChange } from '../model/store.js';
+import { state, mutate, undo as undoChange } from '../model/store.js';
 import { toggleToken, stripToken, stripTime, isWaiting, isNotNow, timeOf } from '../model/markers.js';
-import { INBOX_ID } from '../model/queries.js';
+import { INBOX_ID, CHECK_EVERY, openTasks } from '../model/queries.js';
 import { ui, enter, narrow, PANES, db, virtuals, loopsList, currentLoop, currentTasks, selTask, selItem, loopById } from './view.js';
 import { swap } from '../util.js';
 
@@ -75,10 +75,11 @@ export function remove() {
   if (ui.focus === 'loops') {
     const loop = currentLoop();
     if (loop.kind) return;   // the virtual entries stay
-    // deleting a loop keeps its tasks, unassigned
+    // deleting a loop keeps its tasks: they go to the Inbox (settle() does that)
     mutate(() => {
       const d = db();
-      if (ui.templates) d.tasks = d.tasks.filter(t => t.loopId !== loop.id);   // a template's tasks go with it
+      // a template's tasks go with it, and so does a one-step loop's task
+      if (ui.templates || loop.single) d.tasks = d.tasks.filter(t => t.loopId !== loop.id);
       else d.tasks.forEach(t => { if (t.loopId === loop.id) t.loopId = null; });
       d.loops = d.loops.filter(l => l.id !== loop.id);
     });
@@ -92,6 +93,43 @@ export function toggleDone() {
   if (ui.templates) return;   // templates are never done; their copies are
   const task = selTask();
   if (task) mutate(() => { task.done = !task.done; task.doneAt = task.done ? Date.now() : null; });
+  else if (ui.focus === 'loops') finishLoop();
+}
+
+// space on a loop's row: it's done and goes away, once nothing in it is open
+function finishLoop() {
+  const loop = currentLoop();
+  if (loop.kind) return;
+  const open = openTasks(state, loop.id).length;
+  if (open) {
+    ui.flash = { text: `${open} open ${open === 1 ? 'task' : 'tasks'} left · d deletes the loop, its tasks go to the Inbox` };
+    return;
+  }
+  mutate(() => {
+    state.loops = state.loops.filter(l => l.id !== loop.id);
+    state.tasks = state.tasks.filter(t => t.loopId !== loop.id);
+  });
+  ui.flash = { text: `finished "${loop.title}" · u to undo` };
+}
+
+// .: looked at what's waiting; it asks again in CHECK_EVERY minutes. On a loop's row,
+// all of that loop's waits at once (several agents in one project are looked at together)
+export function markChecked() {
+  if (ui.templates) return;
+  const one = ui.focus === 'tasks' || currentLoop().single;
+  const waits = (one ? [selTask()] : currentTasks()).filter(t => t && isWaiting(t));
+  if (!waits.length) { ui.flash = { text: 'nothing waiting here' }; return; }
+  const now = Date.now();
+  mutate(() => waits.forEach(t => { t.checkedAt = now; }));
+  ui.flash = { text: `checked${waits.length > 1 ? ` ${waits.length}` : ''} · again in ${CHECK_EVERY}m` };
+}
+
+// S: a one-step loop, a single thing to do with its own place in your order
+export function addSingle() {
+  if (ui.templates) return;
+  const i = ui.loopIdx - virtuals().length;
+  ui.focus = 'loops';
+  enter('insert', { editing: { kind: 'new-single', at: i < 0 ? 0 : i + 1 } });
 }
 
 export function toggleMarker(tok) {

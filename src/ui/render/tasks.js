@@ -29,7 +29,6 @@ export function renderTasks() {
     rows.push(
       loop.kind === 'none' ? `<li class="empty">Create a template in the left pane first.</li>`
       : ui.templates ? `<li class="empty">Empty template. Press o to add a task.</li>`
-      : loop.kind === 'standalone' ? `<li class="empty">No standalone tasks. Press o to add one.</li>`
       : loop.kind === 'inbox' ? `<li class="empty">Nothing to sort. c captures from anywhere.</li>`
       : loop.id === null ? `<li class="empty">No tasks. Press o to add one.</li>`
       : `<li class="empty stale">No next action. Press o to add one.</li>`);

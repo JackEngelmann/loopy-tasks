@@ -2,8 +2,8 @@
 
 import { test, eq, ok } from './harness.js';
 import { toggleToken, isWaiting, timeOf, resolveRelative, displayTitle } from '../src/model/markers.js';
-import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders, attention, notNowLast, INBOX_ID } from '../src/model/queries.js';
-import { migrate, stampWaiting, SCHEMA_VERSION } from '../src/model/store.js';
+import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders, attention, notNowLast, checkDue, CHECK_EVERY, INBOX_ID } from '../src/model/queries.js';
+import { migrate, stampWaiting, settle, SCHEMA_VERSION } from '../src/model/store.js';
 import { parseImport } from '../src/model/import.js';
 import { initialVim, vimKey } from '../src/editor/vim.js';
 import { age } from '../src/util.js';
@@ -74,7 +74,7 @@ test('queries: attention groups by urgency, each task once', () => {
       task('done 9:30', { done: true }),
     ],
   };
-  const g = attention(d, 600);
+  const g = attention(d, 600, 60_000);   // a minute in: no wait is due for a check yet
   const titles = list => list.map(t => t.title);
   eq(titles(g.now), ['overdue 9:00 @i']);
   eq(titles(g.soon), ['soon 10:20', 'check back 10:25 @w']);
@@ -121,10 +121,48 @@ test('import: keeps well-formed entries, unassigns tasks of unknown loops', () =
     loops: [{ id: 'L', title: 'Loop' }, { id: '', title: 'bad' }],
     tasks: [task('a', { loopId: 'L' }), task('b', { loopId: 'gone' }), { id: 'c' }],
   }));
-  eq(d.loops.map(l => l.id), ['L']);
-  eq(d.tasks.map(t => [t.title, t.loopId]), [['a', 'L'], ['b', null]]);
+  eq(d.loops.map(l => l.id)[0], 'L');
+  eq(d.tasks.map(t => t.loopId)[0], 'L');
+  const b = d.tasks[1];
+  eq(d.loops.find(l => l.id === b.loopId), { id: b.loopId, title: 'b', single: true, createdAt: b.createdAt || d.loops[1].createdAt },
+    'a task of an unknown loop becomes a one-step loop');
   eq(d.templates, { loops: [], tasks: [] });
   eq(d.version, SCHEMA_VERSION);
+});
+
+test('import: keeps Inbox tasks', () => {
+  const d = parseImport(JSON.stringify({ version: 3, loops: [], tasks: [task('x', { loopId: INBOX_ID })] }));
+  eq(d.tasks[0].loopId, INBOX_ID);
+});
+
+test('migration 2 → 3: standalone tasks become one-step loops, timed ones stay without a loop', () => {
+  const d = migrate({ version: 2, loops: [{ id: 'L', title: 'L' }], templates: { loops: [], tasks: [] }, tasks: [
+    task('Reply to Anna @i'), task('Standup 9:30'), task('in L', { loopId: 'L' }), task('old', { done: true }),
+  ] });
+  eq(d.loops.map(l => [l.title, !!l.single]), [['L', false], ['Reply to Anna', true]]);
+  eq(d.tasks.map(t => t.loopId === null), [false, true, false, true]);
+});
+
+test('settle: loose tasks need a time; one-step loops live and die with their task', () => {
+  const d = { loops: [{ id: 'S', title: 'old name', single: true }, { id: 'E', title: 'gone', single: true }, { id: 'T', title: 'two', single: true }],
+    tasks: [task('untimed'), task('meeting 14:00'), task('renamed @i', { loopId: 'S' }), task('done', { loopId: 'E', done: true }),
+      task('a', { loopId: 'T' }), task('b', { loopId: 'T' }), task('lost', { loopId: 'nowhere' })] };
+  settle(d);
+  eq(d.tasks.filter(t => t.loopId === INBOX_ID).map(t => t.title), ['untimed', 'lost']);
+  eq(d.tasks.find(t => t.title === 'meeting 14:00').loopId, null);
+  eq(d.loops.map(l => [l.id, l.title, !!l.single]), [['S', 'renamed', true], ['T', 'two', false]]);
+  ok(!d.tasks.some(t => t.loopId === 'E'), 'a finished one-step loop goes away with its task');
+});
+
+test('checks: a wait without a time is due 10 minutes after it was last looked at', () => {
+  const min = 60_000;
+  const t = task('agent @w', { waitingSince: 0 });
+  ok(!checkDue(t, 9 * min));
+  ok(checkDue(t, CHECK_EVERY * min));
+  ok(!checkDue({ ...t, checkedAt: 5 * min }, 12 * min), '. resets it');
+  ok(!checkDue(task('agent 15:00 @w', { waitingSince: 0 }), 60 * min), 'a check-back time decides instead');
+  const g = attention({ loops: [], tasks: [t, task('agent 2 @w', { waitingSince: 0, checkedAt: 30 * min })] }, 600, 35 * min);
+  eq([g.check.map(x => x.title), g.later.map(x => x.title)], [['agent @w'], ['agent 2 @w']]);
 });
 
 test('import: rejects files that are not exports', () => {

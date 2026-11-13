@@ -16,9 +16,9 @@ and open <http://localhost:8000>. Reminders (system notifications for timed task
 
 ## Layout
 
-- **Left:** `All`, `Inbox` (captured, not sorted yet; yellow while anything is in it), `Standalone` (tasks without a loop), then your loops. A loop without a next action is yellow; one where everything is waiting is teal. The second line is the loop's next action (its first open, non-waiting task).
+- **Left:** `All`, `Inbox` (captured, not sorted yet; yellow while anything is in it), then your loops, most important first. A loop without a next action is yellow; one where everything is waiting is teal. The second line is the loop's next action (its first open, non-waiting task). A single thing to do (a message to answer) is a **one-step loop** (`S`): one line, keys on it act on its task, and it goes away when the task is done. Every task belongs to a loop or the Inbox, except timed ones (a meeting with nothing to prepare), which may have no loop and show in All and Today.
 - **Middle:** the selected loop's note and open tasks; not-now tasks (`z`) last, under a quiet heading. They are never a next action, don't count, and stay out of Today and reminders, so a loop with only those left is yellow.
-- **Right (read-only): Today**, what needs you across all loops, most urgent first: **Now** (its time has come, including check-backs of waiting tasks), **Soon** (within 30 min), **Important**, **Later**, and **Plan** (loops without a next action). When nothing is due it says so. The header badge and the tab title count what's in Now. On narrow windows this folds into a line above the panes: a yellow strip while something is due now or soon, a quiet line otherwise; `s` shows the panel as an overlay.
+- **Right (read-only): Today**, what needs you across all loops, most urgent first: **Now** (its time has come, including check-backs of waiting tasks), **Soon** (within 30 min), **Check** (waiting without a check-back time and not looked at for 10 min; `.` marks it checked), **Important**, **Later**, and **Plan** (loops without a next action). When nothing is due it says so. The header badge and the tab title count what's in Now. On narrow windows this folds into a line above the panes: a yellow strip while something is due now or soon, a quiet line otherwise; `s` shows the panel as an overlay.
 
 ## Markers in task text
 
@@ -40,14 +40,16 @@ The bottom line shows the main keys for where you are; `?` lists all of them. In
 | `g` / `G`       | first / last                                    |
 | `l` / `h`       | into tasks / back to loops                      |
 | `o` / `O`       | new item below / above                          |
+| `S`             | new one-step loop below                         |
 | `c`             | capture into the Inbox, from anywhere           |
 | `r` / `R`       | rename inline / in the editor                   |
 | `m`             | note on the loop or task (multi-line editor)    |
-| `space`         | done                                            |
+| `space`         | done; on a loop's row: finish the loop (once nothing is open) |
+| `.`             | checked: a waiting task, or all waits of a loop; asks again in 10 min |
 | `w` / `i`       | toggle waiting / important                      |
 | `z`             | toggle not now (tasks in a loop)                |
 | `x` / `p`       | cut task / paste into the selected loop         |
-| `d`             | delete                                          |
+| `d`             | delete (a deleted loop's tasks go to the Inbox) |
 | `/`, `n` / `N`  | search, next / previous match                   |
 | `t` / `T`       | new loop from a template / edit templates       |
 | `a`, `:pick [filter]` | add tasks from Todoist (see below)        |
