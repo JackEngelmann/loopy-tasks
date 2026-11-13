@@ -161,7 +161,10 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 
 /* loops */
 .row.virtual .name { color: var(--text-2); }
-.row.gap-after { margin-bottom: 14px; }
+/* All and the Inbox at the bottom of the pane: the loops list is a column, the filler grows */
+#loops { display: flex; flex-direction: column; }
+#loops > li { flex-shrink: 0; }
+#loops .filler { flex: 1 0 14px; }
 
 /* real loops: title + counts, then the first next action */
 .row.loop { flex-direction: column; align-items: stretch; gap: 0; padding: 4px 10px; }

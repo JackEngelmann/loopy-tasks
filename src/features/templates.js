@@ -2,7 +2,7 @@
 // t (outside template mode) picks a template and copies it into a new loop.
 
 import { state, mutate } from '../model/store.js';
-import { ui, enter, leave, VIRTUAL } from '../ui/view.js';
+import { ui, enter, leave, onVirtual } from '../ui/view.js';
 import { esc, uid } from '../util.js';
 
 export function toggleTemplates() {
@@ -34,10 +34,9 @@ export function pickerChoose() {
   createFromTemplate(tpl);
 }
 
-// a new copy every time, placed below the selected loop (at the top when on "All")
+// a new copy every time, placed below the selected loop (after the last one when on All or the Inbox)
 function createFromTemplate(tpl) {
-  const i = ui.loopIdx - VIRTUAL.length;
-  const at = i < 0 ? 0 : i + 1;
+  const at = onVirtual() ? state.loops.length : ui.loopIdx + 1;
   const loop = { id: uid(), title: tpl.title, createdAt: Date.now() };
   mutate(() => {
     state.loops.splice(at, 0, loop);
@@ -45,7 +44,7 @@ function createFromTemplate(tpl) {
       .filter(t => t.loopId === tpl.id && !t.done)
       .forEach(t => state.tasks.push({ id: uid(), title: t.title, loopId: loop.id, done: false, createdAt: Date.now() }));
   });
-  Object.assign(ui, { loopIdx: VIRTUAL.length + at, taskIdx: 0, focus: 'tasks' });
+  Object.assign(ui, { loopIdx: at, taskIdx: 0, focus: 'tasks' });
   ui.flash = { text: `created "${tpl.title}" from template` };
 }
 

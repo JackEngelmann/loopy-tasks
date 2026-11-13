@@ -17,7 +17,7 @@ export const PANES = ['loops', 'tasks'];
 export const ui = {
   mode: 'normal',
   focus: 'loops',     // one of PANES
-  loopIdx: 0,         // indexes loopsList(): virtual views first, then the real loops
+  loopIdx: 0,         // indexes loopsList(): the real loops, then the virtual views
   taskIdx: 0,
   editing: null,      // see above; also id, at, anchorId, below for inline edits
   cutId: null,
@@ -47,7 +47,7 @@ export function leave() {
   ui.todoist = null;
 }
 
-// virtual loops above the real ones: "All" shows every task, "Inbox" what's captured but
+// virtual loops below the real ones (at the bottom of the pane): "All" shows every task, "Inbox" what's captured but
 // not sorted yet. All has no id: a task created or pasted there gets no loop, which only a
 // timed task keeps (store.js settle() sends the rest to the Inbox); Inbox tasks get INBOX_ID.
 // Having a `kind` is what tells them apart from your loops: they can't be renamed, noted or deleted.
@@ -62,7 +62,10 @@ export const NONE = { id: null, title: 'No templates', kind: 'none' };
 export const db = () => ui.templates ? state.templates : state;
 export const isTemplate = t => state.templates.tasks.includes(t);
 export const virtuals = () => ui.templates ? [] : VIRTUAL;
-export const loopsList = () => [...virtuals(), ...db().loops];
+// your loops first, so loop j is at index j; All and the Inbox after them
+export const loopsList = () => [...db().loops, ...virtuals()];
+// on All or the Inbox rather than one of your loops
+export const onVirtual = () => ui.loopIdx >= db().loops.length;
 export const currentLoop = () => loopsList()[ui.loopIdx] || NONE;
 // ids are unique across both, so tags resolve in either mode; the Inbox resolves too
 export const loopById = id => id === INBOX_ID ? INBOX

@@ -3,7 +3,7 @@
 import { state, mutate, undo as undoChange } from '../model/store.js';
 import { toggleToken, stripToken, stripTime, isWaiting, isNotNow, timeOf } from '../model/markers.js';
 import { INBOX_ID, CHECK_EVERY, openTasks } from '../model/queries.js';
-import { ui, enter, PANES, db, virtuals, loopsList, currentLoop, currentTasks, selTask, selItem, loopById } from './view.js';
+import { ui, enter, PANES, db, loopsList, onVirtual, currentLoop, currentTasks, selTask, selItem, loopById } from './view.js';
 import { swap } from '../util.js';
 import { moveAcrossChecks, jumpToChecks, openCheck, afterCheck, checksByLoop } from './attention.js';
 
@@ -34,12 +34,12 @@ export function focusPane(delta) {
   if (i >= 0 && i < PANES.length) ui.focus = PANES[i];
 }
 
-// J/K: move the selected item down/up; the virtual views stay pinned on top
+// J/K: move the selected item down/up; the virtual views stay pinned at the bottom
 export function shift(delta) {
   if (ui.focus === 'loops') {
     if (ui.checkOn !== null) return;   // reorder on the loop's own row
-    const i = ui.loopIdx - virtuals().length, j = i + delta;
-    if (i < 0 || j < 0 || j >= db().loops.length) return;
+    const i = ui.loopIdx, j = i + delta;
+    if (onVirtual() || j < 0 || j >= db().loops.length) return;
     mutate(() => swap(db().loops, i, j));
     ui.loopIdx += delta;
   } else {
@@ -55,9 +55,9 @@ export function shift(delta) {
 // o / O: new item below / above the selected one; `at` is where the input row shows
 export function add(below) {
   if (ui.focus === 'loops') {
-    // on "All", new loops go to the top of the real loops
-    const i = ui.loopIdx - virtuals().length;
-    enter('insert', { editing: { kind: 'new-loop', at: i < 0 ? 0 : i + (below ? 1 : 0) } });
+    // on All or the Inbox, new loops go after your last one
+    const at = onVirtual() ? db().loops.length : ui.loopIdx + (below ? 1 : 0);
+    enter('insert', { editing: { kind: 'new-loop', at } });
   } else {
     if (currentLoop().kind === 'none') return;   // no template to add tasks to
     const anchor = selTask();
@@ -135,9 +135,9 @@ export function markChecked() {
 // S: a one-step loop, a single thing to do with its own place in your order
 export function addSingle() {
   if (ui.templates) return;
-  const i = ui.loopIdx - virtuals().length;
+  const at = onVirtual() ? db().loops.length : ui.loopIdx + 1;
   ui.focus = 'loops';
-  enter('insert', { editing: { kind: 'new-single', at: i < 0 ? 0 : i + 1 } });
+  enter('insert', { editing: { kind: 'new-single', at } });
 }
 
 export function toggleMarker(tok) {

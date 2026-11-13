@@ -2,7 +2,7 @@
 
 import { mutate } from '../model/store.js';
 import { resolveRelative, isNotNow, hasToken, displayTitle } from '../model/markers.js';
-import { ui, leave, db, virtuals, currentLoop, currentTasks, loopById, itemById } from './view.js';
+import { ui, leave, db, currentLoop, currentTasks, loopById, itemById } from './view.js';
 import { render } from './render/index.js';
 import { esc, uid } from '../util.js';
 
@@ -21,14 +21,14 @@ function commitEdit(value) {
 
   if (ed.kind === 'new-loop') {
     mutate(() => db().loops.splice(ed.at, 0, { id: uid(), title: value, createdAt: Date.now() }));
-    ui.loopIdx = virtuals().length + ed.at;
+    ui.loopIdx = ed.at;
   } else if (ed.kind === 'new-single') {
     const loop = { id: uid(), title: displayTitle({ title: value }), single: true, createdAt: Date.now() };
     mutate(() => {
       db().loops.splice(ed.at, 0, loop);
       db().tasks.push({ id: uid(), title: value, loopId: loop.id, done: false, createdAt: Date.now() });
     });
-    ui.loopIdx = virtuals().length + ed.at;
+    ui.loopIdx = ed.at;
   } else if (ed.kind === 'new-task') {
     // added among the not-now tasks, it's one of them
     const anchorTask = db().tasks.find(t => t.id === ed.anchorId);

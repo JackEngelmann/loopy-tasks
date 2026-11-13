@@ -1,9 +1,9 @@
-// Left pane: Now, today's times and the Check rows on top (top.js), then All, the Inbox and
-// your loops, most important first (or the templates in template mode).
+// Left pane: Now, today's times and the Check rows on top (top.js), then your loops, most
+// important first (or the templates in template mode), and All and the Inbox at the bottom.
 
 import { openTasks, activeTasks, nextOf, loopStatus } from '../../model/queries.js';
 import { isWaiting, isImportant, displayTitle, timeOf, fmtTime } from '../../model/markers.js';
-import { ui, db, virtuals, tasksOf, singleTask, VIRTUAL } from '../view.js';
+import { ui, db, virtuals, tasksOf, singleTask } from '../view.js';
 import { firstDoable, firstTaskOf } from '../attention.js';
 import { topBlock } from './top.js';
 import { highlight } from '../../features/search.js';
@@ -19,26 +19,10 @@ export function renderLoops() {
   const adding = ed && (ed.kind === 'new-loop' || ed.kind === 'new-single');
   const sel = i => i === ui.loopIdx && !adding && ui.checkOn === null;   // else the cursor is on a Check row
 
-  const rows = virtuals().map((l, i) => {
-    const ts = activeTasks(tasksOf(l));   // not-now tasks don't count
-    const listed = l.kind === 'inbox';
-    // anything in the Inbox still needs sorting
-    const cls = ['row', 'virtual', `virtual-${l.kind}`, listed && 'loop', sel(i) && 'sel',
-      l.kind === 'inbox' && ts.length && 'inbox-full',
-      i === VIRTUAL.length - 1 && 'gap-after'].filter(Boolean).join(' ');
-    const name = `<span class="name">${highlight(l.title, 'loops')}</span><span class="count">${ts.length}</span>`;
-    if (!listed) return `<li class="${cls}" data-i="${i}">${name}</li>`;
-    // like a loop: the first task and how many follow
-    const first = ts[0];
-    const empty = 'Nothing to sort';
-    return `<li class="${cls}" data-i="${i}">
-      <div class="loop-line">${name}</div>
-      <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : empty}</span></div>
-    </li>`;
-  });
+  const rows = [];
 
   d.loops.forEach((l, j) => {
-    const i = virtuals().length + j;
+    const i = j;
     const single = singleTask(l);
     if (single) return rows.push(singleRow(l, single, i, sel(i), ed, l === first));
     const open = activeTasks(openTasks(d, l.id));
@@ -66,7 +50,27 @@ export function renderLoops() {
       ${noteLine(l, 'loop-note')}
     </li>`);
   });
-  if (adding) rows.splice(virtuals().length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
+  if (adding) rows.splice(ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
+  const n = d.loops.length;
+  const virtualRows = virtuals().map((l, k) => {
+    const i = n + k;
+    const ts = activeTasks(tasksOf(l));   // not-now tasks don't count
+    const listed = l.kind === 'inbox';
+    // anything in the Inbox still needs sorting
+    const cls = ['row', 'virtual', `virtual-${l.kind}`, listed && 'loop', sel(i) && 'sel',
+      l.kind === 'inbox' && ts.length && 'inbox-full'].filter(Boolean).join(' ');
+    const name = `<span class="name">${highlight(l.title, 'loops')}</span><span class="count">${ts.length}</span>`;
+    if (!listed) return `<li class="${cls}" data-i="${i}">${name}</li>`;
+    // like a loop: the first task and how many follow
+    const first = ts[0];
+    const empty = 'Nothing to sort';
+    return `<li class="${cls}" data-i="${i}">
+      <div class="loop-line">${name}</div>
+      <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : empty}</span></div>
+    </li>`;
+  });
+  // All and the Inbox sit at the bottom of the pane: the filler takes the room in between
+  if (virtualRows.length) rows.push('<li class="filler" aria-hidden="true"></li>', ...virtualRows);
   rows.unshift(topBlock());
   if (!rows.length) rows.push(`<li class="empty">No templates yet. Press o to create one.</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
