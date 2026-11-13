@@ -1,29 +1,39 @@
 // Questions about a data set `d` ({ loops, tasks }: your loops, or the templates).
 // Pure: callers pass the data in.
 
-import { isWaiting, isImportant, timeOf } from './markers.js';
+import { isWaiting, isImportant, isNotNow, timeOf } from './markers.js';
+
+// the Inbox is a fixed loop id: things captured but not sorted yet. It isn't a loop of
+// your own (no next action, never stale); its tasks stand on their own, like standalone ones.
+export const INBOX_ID = 'inbox';
 
 // id null means every loop (and tasks without one)
 export const openTasks = (d, id) => d.tasks.filter(t => !t.done && (id === null || t.loopId === id));
 // tasks that aren't part of a loop
 export const standaloneTasks = d => d.tasks.filter(t => !t.done && t.loopId === null);
+// open tasks that are work: not-now ones are kept, but don't count anywhere
+export const activeTasks = tasks => tasks.filter(t => !isNotNow(t));
+// a list as the middle pane shows it: the work first, then what's not for now
+export const notNowLast = tasks => [...activeTasks(tasks), ...tasks.filter(isNotNow)];
 
 // a loop's next action is its first open, non-waiting task; reorder with J/K to change it.
-// tasks without a loop stand on their own, so each of them counts as a next action.
-export const doable = (d, id) => openTasks(d, id).filter(t => !isWaiting(t));
+// tasks without a loop (and Inbox tasks) stand on their own, so each counts as a next action.
+export const doable = (d, id) => openTasks(d, id).filter(t => !isWaiting(t) && !isNotNow(t));
 export const nextOf = (d, id) => doable(d, id)[0];
 export function isNext(d, t) {
-  if (t.done || isWaiting(t)) return false;
-  return t.loopId ? nextOf(d, t.loopId) === t : true;
+  if (t.done || isWaiting(t) || isNotNow(t)) return false;
+  return t.loopId && t.loopId !== INBOX_ID ? nextOf(d, t.loopId) === t : true;
 }
 
 // a real loop without a next action is "waiting" if something is waiting, else "stale"
+// (also when only not-now tasks are left: it still needs a next action)
 export function loopStatus(d, l) {
   if (l.id === null || nextOf(d, l.id)) return 'ok';
   return openTasks(d, l.id).some(isWaiting) ? 'waiting' : 'stale';
 }
 
-export const timedTasks = tasks => tasks.filter(t => !t.done && timeOf(t) !== null)
+// not-now tasks have no appointment: no Today, no reminder
+export const timedTasks = tasks => tasks.filter(t => !t.done && !isNotNow(t) && timeOf(t) !== null)
   .sort((a, b) => timeOf(a) - timeOf(b));
 
 // ── Attention ──
@@ -38,7 +48,7 @@ export const timedTasks = tasks => tasks.filter(t => !t.done && timeOf(t) !== nu
 export const SOON = 30;
 
 export function attention(d, now) {
-  const open = d.tasks.filter(t => !t.done);
+  const open = d.tasks.filter(t => !t.done && !isNotNow(t));
   const timed = timedTasks(open);
   const groups = {
     now: timed.filter(t => timeOf(t) <= now),

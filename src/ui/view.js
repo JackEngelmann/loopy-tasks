@@ -1,7 +1,7 @@
 // UI state: what's selected, which mode the keyboard is in, and the lists as the panes show them.
 
 import { state } from '../model/store.js';
-import { openTasks, standaloneTasks } from '../model/queries.js';
+import { openTasks, standaloneTasks, notNowLast, INBOX_ID } from '../model/queries.js';
 
 // navigable panes; the right column is informational only
 export const PANES = ['loops', 'tasks'];
@@ -11,6 +11,7 @@ export const PANES = ['loops', 'tasks'];
 //   insert  typing in an inline input (o, O, r)            ui.editing = { kind: 'new-loop' | 'new-task' | 'rename', ... }
 //   modal   the vim-style editor (m note, R rename)        ui.editing = { kind: 'note' | 'title', id }
 //   search  typing a "/" query                              ui.search
+//   capture typing into the Inbox from anywhere (c)       the status bar input
 //   picker  choosing a template (t)                         ui.picker = { idx }
 //   todoist picking Todoist tasks (a)                       ui.todoist = { idx, items, marked, error }
 export const ui = {
@@ -45,11 +46,14 @@ export function leave() {
   ui.todoist = null;
 }
 
-// virtual loops above the real ones: "All" shows every task, "Standalone" the tasks
-// without a loop. Neither has an id, so tasks created or pasted there get no loop.
+// virtual loops above the real ones: "All" shows every task, "Inbox" what's captured but
+// not sorted yet, "Standalone" the tasks without a loop. All and Standalone have no id, so
+// tasks created or pasted there get no loop; Inbox tasks get INBOX_ID. Having a `kind` is
+// what tells them apart from your loops: they can't be renamed, noted or deleted.
 export const ALL = { id: null, title: 'All', kind: 'all' };
+export const INBOX = { id: INBOX_ID, title: 'Inbox', kind: 'inbox' };
 export const STANDALONE = { id: null, title: 'Standalone', kind: 'standalone' };
-export const VIRTUAL = [ALL, STANDALONE];
+export const VIRTUAL = [ALL, INBOX, STANDALONE];
 // stand-in when template mode has no templates yet
 export const NONE = { id: null, title: 'No templates', kind: 'none' };
 
@@ -60,12 +64,13 @@ export const isTemplate = t => state.templates.tasks.includes(t);
 export const virtuals = () => ui.templates ? [] : VIRTUAL;
 export const loopsList = () => [...virtuals(), ...db().loops];
 export const currentLoop = () => loopsList()[ui.loopIdx] || NONE;
-// ids are unique across both, so tags resolve in either mode
-export const loopById = id => state.loops.find(l => l.id === id) || state.templates.loops.find(l => l.id === id);
+// ids are unique across both, so tags resolve in either mode; the Inbox resolves too
+export const loopById = id => id === INBOX_ID ? INBOX
+  : state.loops.find(l => l.id === id) || state.templates.loops.find(l => l.id === id);
 export const itemById = id => loopById(id) || db().tasks.find(t => t.id === id);
 
-// open tasks of a loop, real or virtual, in order (waiting ones included)
-export const tasksOf = loop => loop.kind === 'standalone' ? standaloneTasks(db()) : openTasks(db(), loop.id);
+// open tasks of a loop, real or virtual, in order (waiting ones included), not-now ones last
+export const tasksOf = loop => notNowLast(loop.kind === 'standalone' ? standaloneTasks(db()) : openTasks(db(), loop.id));
 // middle pane; done tasks are hidden
 export const currentTasks = () => tasksOf(currentLoop());
 export const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] : null;

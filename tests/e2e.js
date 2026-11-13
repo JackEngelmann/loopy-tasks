@@ -72,16 +72,16 @@ const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMin
 
 // ── Layout and navigation ─────────────────────────────────────────────────────
 
-test('seed data shows All, Standalone and four loops', async () => {
+test('seed data shows All, Inbox, Standalone and four loops', async () => {
   await fresh();
-  eq($$('#loops .row').length, 6);
+  eq($$('#loops .row').length, 7);
   eq(selected('loops').startsWith('All'), true);
   eq($$('#tasks .row').length, 11);
 });
 
 test('j selects a loop, l moves into its tasks', async () => {
   await fresh();
-  keys('j', 'j');
+  keys('j', 'j', 'j');
   ok(selected('loops').startsWith('Website redesign'));
   eq(text('#tasksTitle'), 'Website redesign');
   keys('l');
@@ -110,7 +110,7 @@ test('stale loop is yellow, waiting-only loop is teal', async () => {
 
 test('o adds a task below the selected one', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'o');
+  keys('j', 'j', 'j', 'l', 'o');
   eq(text('#mode'), 'INSERT');
   typeInline('New thing');
   const web = loop('Website redesign').id;
@@ -121,7 +121,7 @@ test('o adds a task below the selected one', async () => {
 
 test('O adds above; esc cancels an inline edit', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'O');
+  keys('j', 'j', 'j', 'l', 'O');
   typeInline('Above', 'Escape');
   eq(task('Above'), undefined);
   keys('O');
@@ -132,14 +132,14 @@ test('O adds above; esc cancels an inline edit', async () => {
 
 test('r renames inline', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'r');
+  keys('j', 'j', 'j', 'l', 'r');
   typeInline('Sketch the landing page @i');
   ok(task('Sketch the landing page'));
 });
 
 test('w marks waiting with a timestamp and a note hint, w again clears it', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'j', 'w');
+  keys('j', 'j', 'j', 'l', 'j', 'w');
   ok(task('Collect feedback').title.endsWith('@w'));
   ok(task('Collect feedback').waitingSince > 0, 'waitingSince set');
   eq(text('#flash'), '+20m in the title (r) sets a check-back · m to note where you left off');
@@ -155,13 +155,13 @@ test('w marks waiting with a timestamp and a note hint, w again clears it', asyn
 
 test('i marks important and shows it on the right', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'j', 'i');
+  keys('j', 'j', 'j', 'l', 'j', 'i');
   ok(group('important').includes('Collect feedback'));
 });
 
 test('space marks done and hides the task; u brings it back', async () => {
   await fresh();
-  keys('j', 'j', 'l', ' ');
+  keys('j', 'j', 'j', 'l', ' ');
   eq(task('Sketch new').done, true);
   ok(!selected('tasks').includes('Sketch new'));
   keys('u');
@@ -170,7 +170,7 @@ test('space marks done and hides the task; u brings it back', async () => {
 
 test('J/K reorder and change the next action', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'j', 'K');
+  keys('j', 'j', 'j', 'l', 'j', 'K');
   ok($('#loops .row.sel .loop-next').textContent.includes('Collect feedback'));
   keys('J');
   ok($('#loops .row.sel .loop-next').textContent.includes('Sketch new landing page'));
@@ -178,7 +178,7 @@ test('J/K reorder and change the next action', async () => {
 
 test('d deletes a task; u undoes', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'd');
+  keys('j', 'j', 'j', 'l', 'd');
   eq(task('Sketch new'), undefined);
   keys('u');
   ok(task('Sketch new'));
@@ -186,7 +186,7 @@ test('d deletes a task; u undoes', async () => {
 
 test('x / p move a task to another loop', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'x');
+  keys('j', 'j', 'j', 'l', 'x');
   ok(text('#clip').includes('Sketch new landing page'));
   keys('h', 'j', 'p');
   eq(task('Sketch new').loopId, loop('Quarterly report').id);
@@ -195,7 +195,7 @@ test('x / p move a task to another loop', async () => {
 
 test('Today: a check-back moves to Soon, an overdue task to Now with a badge', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'o');
+  keys('j', 'j', 'j', 'l', 'o');
   typeInline('Check agent @w +10m');
   ok(group('soon').includes('Check agent'), group('soon'));
   ok(group('soon').includes('Website redesign · check back in'), group('soon'));   // "in 10m", less just before midnight
@@ -214,7 +214,7 @@ test('Today: a check-back moves to Soon, an overdue task to Now with a badge', a
 test('Today: calm when nothing is due', async () => {
   // an empty store would get the seed data, which has overdue tasks
   await fresh({ stored: { version: 2, loops: [{ id: 'L', title: 'Calm loop' }], tasks: [], templates: { loops: [], tasks: [] } } });
-  keys('j', 'j', 'l', 'o');
+  keys('j', 'j', 'j', 'l', 'o');
   typeInline('Something @i');
   ok(text('#today').startsWith('Nothing needs you right now'), text('#today'));
   ok($('#nowBadge').hidden, 'badge hidden');
@@ -223,7 +223,7 @@ test('Today: calm when nothing is due', async () => {
 
 test('+20m becomes a clock time', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'o');
+  keys('j', 'j', 'j', 'l', 'o');
   typeInline('Ping colleague +20m');
   eq(task('Ping colleague').title, `Ping colleague ${hhmm(Math.min(nowMin() + 20, 1439))}`);
   keys('r');
@@ -235,7 +235,7 @@ test('+20m becomes a clock time', async () => {
 
 test('o in the loops pane adds a loop; d deletes it but keeps its tasks', async () => {
   await fresh();
-  keys('j', 'j', 'o');
+  keys('j', 'j', 'j', 'o');
   typeInline('Hiring');
   eq(data().loops.map(l => l.title)[1], 'Hiring');
   keys('k', 'd');
@@ -245,7 +245,7 @@ test('o in the loops pane adds a loop; d deletes it but keeps its tasks', async 
 
 test('Standalone lists tasks without a loop; new and pasted tasks there get none', async () => {
   await fresh();
-  keys('j');
+  keys('j', 'j');
   ok(selected('loops').startsWith('Standalone'), selected('loops'));
   eq(text('#loops .row.sel .count'), '3');
   ok(selected('loops').includes('▸ Reply to invoice email'), selected('loops'));
@@ -262,6 +262,109 @@ test('Standalone lists tasks without a loop; new and pasted tasks there get none
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
+
+// typing into the c input
+function capture(value, key = 'Enter') {
+  keys('c');
+  ok(!$('#captureBox').hidden, 'capture input is open');
+  $('#captureInput').value = value;
+  $('#captureInput').dispatchEvent(event(key));
+}
+
+test('c captures into the Inbox from anywhere; the Inbox is yellow while not empty', async () => {
+  await fresh();
+  keys('j');
+  ok(selected('loops').startsWith('Inbox'), selected('loops'));
+  ok(selected('loops').includes('Nothing to sort'));
+  ok(!$('#loops .row.sel').classList.contains('inbox-full'));
+  keys('j', 'j', 'l', 'j');   // the second task of Website redesign
+  const before = selected('tasks');
+  capture('Call the bank +20m');
+  eq(task('Call the bank').loopId, 'inbox');
+  ok(/Call the bank \d\d:\d\d/.test(task('Call the bank').title), 'markers work as when typing a task');
+  eq(selected('tasks'), before, 'the cursor stays where it was');
+  ok(focused('tasks'));
+  capture('never mind', 'Escape');
+  ok(!task('never mind'));
+  const inbox = $$('#loops .row')[1];
+  ok(inbox.classList.contains('inbox-full'));
+  eq(inbox.querySelector('.count').textContent, '1');
+  ok(inbox.textContent.includes('▸ Call the bank'));
+});
+
+test('the Inbox works like Standalone, but apart from it', async () => {
+  await fresh();
+  keys('j', 'l', 'o');
+  typeInline('Idea for the offsite');
+  eq(task('Idea for the offsite').loopId, 'inbox');
+  ok(text('#tasks .row').startsWith('▸'), 'each Inbox task stands on its own');
+  keys('h', 'j');
+  ok(!text('#tasks').includes('Idea for the offsite'), 'not in Standalone');
+  keys('k', 'r', 'm', 'd');
+  ok(selected('loops').startsWith('Inbox'), 'r, m and d leave the Inbox alone');
+  ok(!modalOpen());
+  keys('k');
+  ok(text('#tasks').includes('[Inbox]'), 'All tags them');
+  // sorting: x in the Inbox, p on a loop
+  keys('j', 'l', 'x', 'h', 'j', 'j', 'p');
+  eq(task('Idea for the offsite').loopId, loop('Website redesign').id);
+  ok(!$$('#loops .row')[1].classList.contains('inbox-full'), 'empty again');
+});
+
+test('c is off in template mode', async () => {
+  await fresh();
+  keys('T', 'c');
+  ok($('#captureBox').hidden);
+});
+
+test('z: not now moves a task to the end of its loop and out of the work', async () => {
+  await fresh();
+  keys('j', 'j', 'j', 'l');   // Website redesign: Sketch new landing page @i is the next action
+  const count = () => text('#loops .row.sel .count');
+  eq(count(), '5');
+  keys('z');
+  eq(task('Sketch new').title, 'Sketch new landing page @i @n');
+  ok(text('#tasks .tier.not-now').startsWith('Not now'));
+  ok(text('#tasks .row:last-child').includes('Sketch new landing page'), 'last, under the heading');
+  ok($('#tasks .row:last-child').classList.contains('not-now'));
+  ok(selected('loops').includes('▸ Collect feedback'), 'the next action moves on');
+  eq(count(), '4', 'not counted');
+  ok(!text('#today').includes('Sketch new'), 'not in Today, though important');
+  ok(selected('tasks').includes('Collect feedback'), 'the cursor stays in place');
+  // o on a not-now task adds another one
+  keys('G', 'o');
+  typeInline('Try a serif headline');
+  eq(task('Try a serif').title, 'Try a serif headline @n');
+  // K can't lift it above the heading; z again brings it back
+  keys('g', 'G', 'k');
+  ok(selected('tasks').includes('Sketch new'));
+  keys('K');
+  ok(text('#tasks .row:last-child').includes('Try a serif'), 'K stays within Not now');
+  keys('z');
+  eq(task('Sketch new').title, 'Sketch new landing page @i');
+});
+
+test('z ends a wait (and the other way round); a loop with only not-now tasks is yellow', async () => {
+  await fresh();
+  keys('j', 'j', 'j', 'j', 'l');   // Quarterly report: one waiting task
+  keys('z');
+  eq(task('Draft sent').title, 'Draft sent to finance for review @n');
+  ok($('#loops .row.sel').classList.contains('stale'));
+  ok(selected('loops').includes('Only not-now tasks'));
+  keys('w');
+  eq(task('Draft sent').title, 'Draft sent to finance for review @w');
+});
+
+test('z is for loops only', async () => {
+  await fresh();
+  keys('j', 'j', 'l');   // Standalone
+  keys('z');
+  ok(!task('Reply to invoice').title.includes('@n'));
+  ok(text('#flash').includes(':park'));
+  capture('Inbox idea');
+  keys('h', 'k', 'l', 'z');
+  eq(task('Inbox idea').title, 'Inbox idea');
+});
 
 test('/ jumps to matches, n cycles, esc clears', async () => {
   await fresh();
@@ -296,7 +399,7 @@ test('T switches to templates and back', async () => {
 
 test('t creates a loop from a template', async () => {
   await fresh();
-  keys('j', 'j', 't');
+  keys('j', 'j', 'j', 't');
   ok(!$('#picker').hidden);
   eq(text('#mode'), 'TEMPLATE');
   keys('Enter');
@@ -350,7 +453,7 @@ test('a lists Todoist tasks; enter adds the selected one to the loop', async () 
     { id: '1', content: 'Water plants', project_id: 'P', priority: 1, due: { date: today() } },
     { id: '2', content: 'Call Anna', project_id: 'P', priority: 4, due: { date: `${today()}T14:30:00` }, description: 'about the trip' },
   ]);
-  keys('j', 'j', 'a');
+  keys('j', 'j', 'j', 'a');
   ok(!$('#todoist').hidden);
   eq(text('#mode'), 'TODOIST');
   await settle();
@@ -368,7 +471,7 @@ test('a lists Todoist tasks; enter adds the selected one to the loop', async () 
 test('space marks several; picked ones are not offered again', async () => {
   await fresh();
   fakeTodoist(['A', 'B', 'C'].map(c => ({ id: c, content: `Todo ${c}`, project_id: 'P', priority: 1, due: { date: today() } })));
-  keys('j', 'a');
+  keys('j', 'j', 'a');
   await settle();
   keys(' ', ' ', 'Enter');
   eq(data().tasks.filter(t => t.todoistId).map(t => [t.title, t.loopId]), [['Todo A', null], ['Todo B', null]]);
@@ -392,7 +495,7 @@ test(':pick @label asks Todoist for that filter', async () => {
 test(':park sends the task to Todoist and removes it here', async () => {
   await fresh();
   const sent = fakeTodoist([]);
-  keys('j', 'j', 'l');   // Sketch new landing page @i
+  keys('j', 'j', 'j', 'l');   // Sketch new landing page @i
   command('park tomorrow');
   await settle();
   const req = sent.at(-1);
@@ -407,7 +510,7 @@ test(':park on a picked task only removes it, or moves its date', async () => {
     { id: 'b', title: 'Also from Todoist', todoistId: '8', loopId: null, done: false },
   ] } });
   const sent = fakeTodoist([]);
-  keys('j', 'l');
+  keys('j', 'j', 'l');
   command('park');
   await settle();
   eq(sent.length, 0);
@@ -422,7 +525,7 @@ test(':park on a picked task only removes it, or moves its date', async () => {
 
 test('m opens the note editor in normal mode; :wq saves', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   ok(modalOpen());
   eq(text('#mode'), 'NOTE NORMAL');
   vim('i');
@@ -437,14 +540,14 @@ test('m opens the note editor in normal mode; :wq saves', async () => {
 
 test('M opens the note editor too', async () => {
   await fresh();
-  keys('j', 'j', 'M');
+  keys('j', 'j', 'j', 'M');
   ok(modalOpen());
   eq(text('#mode'), 'NOTE NORMAL');
 });
 
 test('normal mode shows a block cursor on an empty line too', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   const block = $('#noteCursor');
   ok(!block.hidden, 'empty note: the drawn block');
   const area = note().getBoundingClientRect(), b = block.getBoundingClientRect();
@@ -462,7 +565,7 @@ test('normal mode shows a block cursor on an empty line too', async () => {
 
 test(':w keeps editing, :q refuses with changes, :q! discards', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   vim('i'); insert('one');
   vim('Escape', ':', 'w', 'Enter');
   ok(modalOpen());
@@ -478,7 +581,7 @@ test(':w keeps editing, :q refuses with changes, :q! discards', async () => {
 
 test('esc closes the editor when nothing changed', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   vim('d', 'Escape');
   ok(modalOpen(), 'the first esc only cancels the pending d');
   vim('Escape');
@@ -491,7 +594,7 @@ test('esc closes the editor when nothing changed', async () => {
 
 test('esc with changes does not close; ZZ saves; empty note removes it', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   vim('i'); insert('x');
   vim('Escape', 'Escape');
   ok(modalOpen());
@@ -504,7 +607,7 @@ test('esc with changes does not close; ZZ saves; empty note removes it', async (
 
 test('vim motions', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   modalWith('hello world foo\nsecond line\n  third');
   const at = (ks, expected) => { vim(...ks); eq(modalCursor(), expected, ks.join('')); };
   at(['w'], 6);
@@ -521,7 +624,7 @@ test('vim motions', async () => {
 
 test('vim edits', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   const cases = [
     ['one two three', 4, ['d', 'w'], 'one |three'],
     ['one two\nnext', 4, ['d', 'w'], 'one| \nnext'],
@@ -554,7 +657,7 @@ test('vim edits', async () => {
 
 test('dd then p moves a line; the register survives reopening the editor', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   vim('i'); insert('first\nsecond'); vim('Escape', 'g', 'g', 'd', 'd', 'p');
   eq(modalText(), 'second\nfirst');
   vim(':', 'w', 'q', 'Enter');
@@ -566,7 +669,7 @@ test('dd then p moves a line; the register survives reopening the editor', async
 
 test('editor: short hint line, ? shows all keys over it', async () => {
   await fresh();
-  keys('j', 'j', 'm');
+  keys('j', 'j', 'j', 'm');
   eq(text('#hints'), 'i insert  :wq/ZZ save  :q! discard  ? all keys');
   vim('?');
   ok(!$('#help').hidden);
@@ -580,7 +683,7 @@ test('editor: short hint line, ? shows all keys over it', async () => {
 
 test('R renames in the modal; enter does not add a line', async () => {
   await fresh();
-  keys('j', 'j', 'R');
+  keys('j', 'j', 'j', 'R');
   eq(text('#mode'), 'RENAME NORMAL');
   eq(modalText(), 'Website redesign');
   vim('c', 'w');
@@ -696,7 +799,7 @@ test('data saved before versioning still loads', async () => {
     tasks: [{ id: 'a', title: 'Old task @w', loopId: 'L', done: false }],
   } });
   ok(text('#loops').includes('Old loop'));
-  keys('j', 'j', 'l', 'o');
+  keys('j', 'j', 'j', 'l', 'o');
   typeInline('New');
   eq(data().version, 2);
   ok(task('Old task').waitingSince > 0);
@@ -705,7 +808,7 @@ test('data saved before versioning still loads', async () => {
 
 test('data survives a reload', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'o');
+  keys('j', 'j', 'j', 'l', 'o');
   typeInline('Persisted');
   w.location.reload();
   await new Promise(r => document.getElementById('app').addEventListener('load', r, { once: true }));

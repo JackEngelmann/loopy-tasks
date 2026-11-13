@@ -15,7 +15,7 @@ export let vim = initialVim('');
 
 export function openModal(kind) {
   const item = selItem();
-  if (!item || !item.id) return;
+  if (!item || !item.id || item.kind) return;   // not on the virtual entries
   enter('modal', { editing: { kind, id: item.id } });
   input.value = kind === 'note' ? item.note || '' : item.title;
   vim = initialVim(input.value, vim.reg);   // the register survives closing the editor

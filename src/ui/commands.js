@@ -17,6 +17,7 @@ import { ui, leave, enter } from './view.js';
 import { startSearch, searchNext } from '../features/search.js';
 import { toggleTemplates, openPicker, pickerMove, pickerChoose } from '../features/templates.js';
 import { startCommand } from '../features/cmdline.js';
+import { startCapture } from '../features/capture.js';
 import { openTodoist, todoistMove, todoistMark, todoistChoose } from '../features/todoist.js';
 import { openModal } from '../editor/modal.js';
 
@@ -38,6 +39,7 @@ export const COMMANDS = [
   { modes: ['normal'], hint: 'h', label: 'back', keys: { h: () => act.focusPane(-1), ArrowLeft: () => act.focusPane(-1) } },
   { modes: ['normal'], help: ['enter', 'open the loop / done'],
     keys: { Enter: () => { if (ui.focus === 'loops') ui.focus = 'tasks'; else act.toggleDone(); } } },
+  { modes: ['normal'], hint: 'c', label: 'to the Inbox', show: notTemplates, keys: { c: startCapture } },
   { modes: ['normal'], hint: 'o/O',
     label: ctx => `new ${ctx.templates ? (ctx.pane === 'loops' ? 'template ' : 'task ') : ctx.pane === 'loops' ? 'loop ' : ''}below/above`,
     essential: true, keys: { o: () => act.add(true), O: () => act.add(false) } },
@@ -47,6 +49,7 @@ export const COMMANDS = [
   { modes: ['normal'], hint: 'space', label: 'done', show: inTasks, essential: true, keys: { ' ': act.toggleDone } },
   { modes: ['normal'], hint: 'w', label: 'waiting', show: inTasks, essential: true, keys: { w: () => act.toggleMarker('@w') } },
   { modes: ['normal'], hint: 'i', label: 'important', keys: { i: () => act.toggleMarker('@i') } },
+  { modes: ['normal'], hint: 'z', label: 'not now', show: inTasks, keys: { z: () => act.toggleMarker('@n') } },
   { modes: ['normal'], hint: 'r', label: 'rename', keys: { r: act.rename } },
   { modes: ['normal'], hint: 'R', label: 'rename in the editor', keys: { R: () => openModal('title') } },
   { modes: ['normal'], hint: 'm', label: 'note', show: notTemplates, essential: true,
@@ -80,6 +83,7 @@ export const COMMANDS = [
   { modes: ['insert'], hint: 'esc', label: 'cancel' },
   { modes: ['insert'], hint: '@w', label: 'waiting' },
   { modes: ['insert'], hint: '@i', label: 'important' },
+  { modes: ['insert'], hint: '@n', label: 'not now' },
   { modes: ['insert'], hint: '14:30 / +20m', label: 'timed' },
   { modes: ['help'], hint: 'esc', label: 'close', keys: { Escape: leave, '?': leave, q: leave } },
   // short in the status bar, in full in the ? help
@@ -89,6 +93,8 @@ export const COMMANDS = [
   { modes: ['command'], hint: ':import', label: 'replace from file', help: [':import', 'replace all data from a file'] },
   { modes: ['command'], hint: 'enter', label: 'run' },
   { modes: ['command'], hint: 'esc', label: 'cancel' },
+  { modes: ['capture'], hint: 'enter', label: 'add to the Inbox' },
+  { modes: ['capture'], hint: 'esc', label: 'cancel' },
   { modes: ['search'], hint: 'enter', label: 'confirm' },
   { modes: ['search'], hint: 'esc', label: 'cancel' },
   { modes: ['vim-normal'], hint: 'i', label: 'insert', essential: true, short: true },

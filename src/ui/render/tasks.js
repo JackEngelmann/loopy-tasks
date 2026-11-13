@@ -3,6 +3,7 @@
 import { ui, currentLoop, currentTasks } from '../view.js';
 import { editInput } from '../inline-edit.js';
 import { taskRow } from './rows.js';
+import { isNotNow } from '../../model/markers.js';
 import { esc, age } from '../../util.js';
 
 export function renderTasks() {
@@ -18,11 +19,18 @@ export function renderTasks() {
     notes: true,
   }));
   if (adding) rows.splice(ui.editing.at, 0, `<li class="row sel"><span class="check"></span>${editInput('')}</li>`);
+  // the not-now tasks (last in the list) under a quiet heading
+  const firstNotNow = ts.findIndex(isNotNow);
+  if (firstNotNow >= 0) {
+    const at = firstNotNow + (adding && ui.editing.at <= firstNotNow ? 1 : 0);
+    rows.splice(at, 0, `<li class="tier not-now">Not now <span class="count">${ts.length - firstNotNow}</span></li>`);
+  }
   if (!rows.length) {
     rows.push(
       loop.kind === 'none' ? `<li class="empty">Create a template in the left pane first.</li>`
       : ui.templates ? `<li class="empty">Empty template. Press o to add a task.</li>`
       : loop.kind === 'standalone' ? `<li class="empty">No standalone tasks. Press o to add one.</li>`
+      : loop.kind === 'inbox' ? `<li class="empty">Nothing to sort. c captures from anywhere.</li>`
       : loop.id === null ? `<li class="empty">No tasks. Press o to add one.</li>`
       : `<li class="empty stale">No next action. Press o to add one.</li>`);
   }

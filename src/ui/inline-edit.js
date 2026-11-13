@@ -1,7 +1,7 @@
 // Insert mode: the one-line input that o, O and r open in a row. Enter saves, esc cancels.
 
 import { mutate } from '../model/store.js';
-import { resolveRelative } from '../model/markers.js';
+import { resolveRelative, isNotNow, hasToken } from '../model/markers.js';
 import { ui, leave, db, virtuals, currentLoop, currentTasks, loopById, itemById } from './view.js';
 import { render } from './render/index.js';
 import { esc, uid } from '../util.js';
@@ -23,6 +23,9 @@ function commitEdit(value) {
     mutate(() => db().loops.splice(ed.at, 0, { id: uid(), title: value, createdAt: Date.now() }));
     ui.loopIdx = virtuals().length + ed.at;
   } else if (ed.kind === 'new-task') {
+    // added among the not-now tasks, it's one of them
+    const anchorTask = db().tasks.find(t => t.id === ed.anchorId);
+    if (anchorTask && isNotNow(anchorTask) && !hasToken(value, '@n')) value += ' @n';
     const task = { id: uid(), title: value, loopId: currentLoop().id, done: false, createdAt: Date.now() };
     mutate(() => {
       // insert next to the task the cursor was on, or at the end if there was none

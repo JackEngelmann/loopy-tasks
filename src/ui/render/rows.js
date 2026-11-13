@@ -1,7 +1,7 @@
 // Row markup shared by the panes.
 
 import { isNext } from '../../model/queries.js';
-import { isWaiting, isImportant, timeOf, fmtTime, nowMinutes, displayTitle } from '../../model/markers.js';
+import { isWaiting, isImportant, isNotNow, timeOf, fmtTime, nowMinutes, displayTitle } from '../../model/markers.js';
 import { ui, db, isTemplate, loopById } from '../view.js';
 import { highlight } from '../../features/search.js';
 import { editInput } from '../inline-edit.js';
@@ -24,12 +24,13 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
   const time = timeOf(t);
   const now = nowMinutes();
   // template times aren't appointments, so they're never due
-  const due = !t.done && time !== null && time <= now && !isTemplate(t);
+  const due = !t.done && !isNotNow(t) && time !== null && time <= now && !isTemplate(t);
   const next = marks && isNext(db(), t);
   const cls = ['row',
     selected && 'sel',
     next && 'next',
     marks && !next && !t.done && 'backlog',
+    isNotNow(t) && 'not-now',
     t.done && 'done',
     due && 'due',
     t.id === ui.cutId && 'cut',

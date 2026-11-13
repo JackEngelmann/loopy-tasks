@@ -16,8 +16,8 @@ and open <http://localhost:8000>. Reminders (system notifications for timed task
 
 ## Layout
 
-- **Left:** `All`, `Standalone` (tasks without a loop), then your loops. A loop without a next action is yellow; one where everything is waiting is teal. The second line is the loop's next action (its first open, non-waiting task).
-- **Middle:** the selected loop's note and open tasks.
+- **Left:** `All`, `Inbox` (captured, not sorted yet; yellow while anything is in it), `Standalone` (tasks without a loop), then your loops. A loop without a next action is yellow; one where everything is waiting is teal. The second line is the loop's next action (its first open, non-waiting task).
+- **Middle:** the selected loop's note and open tasks; not-now tasks (`z`) last, under a quiet heading. They are never a next action, don't count, and stay out of Today and reminders, so a loop with only those left is yellow.
 - **Right (read-only): Today**, what needs you across all loops, most urgent first: **Now** (its time has come, including check-backs of waiting tasks), **Soon** (within 30 min), **Important**, **Later**, and **Plan** (loops without a next action). When nothing is due it says so. The header badge and the tab title count what's in Now. On narrow windows this folds into a line above the panes: a yellow strip while something is due now or soon, a quiet line otherwise; `s` shows the panel as an overlay.
 
 ## Markers in task text
@@ -26,6 +26,7 @@ and open <http://localhost:8000>. Reminders (system notifications for timed task
 |-----------------|----------------------------------------------------------|
 | `@w`            | waiting (shows how long); add a time for when to check back |
 | `@i`            | important                                                 |
+| `@n`            | not now: kept with its loop (an idea, held back), but not work |
 | `14:30`         | timed: listed in Timed, reminded at that time             |
 | `+20m` `+1h30`  | becomes a clock time when saved                           |
 
@@ -39,10 +40,12 @@ The bottom line shows the main keys for where you are; `?` lists all of them. In
 | `g` / `G`       | first / last                                    |
 | `l` / `h`       | into tasks / back to loops                      |
 | `o` / `O`       | new item below / above                          |
+| `c`             | capture into the Inbox, from anywhere           |
 | `r` / `R`       | rename inline / in the editor                   |
 | `m`             | note on the loop or task (multi-line editor)    |
 | `space`         | done                                            |
 | `w` / `i`       | toggle waiting / important                      |
+| `z`             | toggle not now (tasks in a loop)                |
 | `x` / `p`       | cut task / paste into the selected loop         |
 | `d`             | delete                                          |
 | `/`, `n` / `N`  | search, next / previous match                   |
@@ -60,7 +63,7 @@ Loopy doesn't sync with Todoist, but tasks can move between them by hand. Todois
 
 - **Set up:** put your API token (Todoist → Settings → Integrations → Developer) in `.env` as `TODOIST_TOKEN=…` (see `.env.example`; `.env` is gitignored). `serve.py` reads it on every request, so no restart is needed, and adds it to Loopy's Todoist requests: the browser never sees the token. It passes on only what Loopy does (list tasks and projects, add a task, change a task's date), and only from Loopy's own pages.
 - **`a`** (or `:pick`) lists Todoist's today and overdue tasks with their project. `:pick <filter>` takes any [Todoist filter](https://todoist.com/help/articles/introduction-to-filters-V98wIH) instead: `:pick @arbeit` lists everything labelled arbeit, `:pick today & @arbeit` only today's. `space` marks several, `enter` copies the marked ones (or the selected one) into the selected loop. A time due today becomes a time marker, p1 becomes `@i`, and the description becomes the note. Todoist is not changed: a task finished here still needs ticking off there. Tasks already picked show a ✓ and can't be added twice.
-- **`:park [when]`** moves the selected task to Todoist: it becomes a new Inbox task (`when` is Todoist's own date text, like `tomorrow` or `fri`) and leaves Loopy. A task that came from Todoist is still there, so parking only removes it here, and moves its date if you give one.
+- **`:park [when]`** moves the selected task to Todoist: it becomes a new task in your Todoist Inbox (`when` is Todoist's own date text, like `tomorrow` or `fri`) and leaves Loopy. A task that came from Todoist is still there, so parking only removes it here, and moves its date if you give one.
 
 The note editor opens in normal mode with a few vim keys (motions, `d`/`c` with `w e b $ 0 iw`, `dd`, `cc`, `C`, counts) and `:w`, `:wq`, `:x`, `:q`, `:q!`.
 
@@ -86,7 +89,7 @@ src/
   editor/
     vim.js             pure vim core: (state, key) → state
     modal.js           the note / rename editor around it
-  features/            search, templates, reminders, export/import, Todoist, seed data
+  features/            search, templates, reminders, export/import, Inbox capture, Todoist, seed data
 tests/
 ```
 

@@ -13,6 +13,7 @@ import { renderToday } from './today.js';
 import { renderChrome } from './chrome.js';
 import { renderHelp } from './help.js';
 import { renderCmdBox } from '../../features/cmdline.js';
+import { renderCaptureBox } from '../../features/capture.js';
 
 export function render() {
   clamp();
@@ -26,6 +27,7 @@ export function render() {
   renderChrome();
   renderSearchBox();
   renderCmdBox();
+  renderCaptureBox();
   renderHelp();
   document.getElementById('backdrop').hidden = !['modal', 'picker', 'todoist', 'help'].includes(ui.mode);
   renderNotifyBtn();

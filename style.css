@@ -48,7 +48,7 @@
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 .time, .count, .counts, .wait-age, .when, kbd, .badge,
-footer .mode, #searchBox, #cmdBox, #searchInfo {
+footer .mode, #searchBox, #cmdBox, #captureBox, #searchInfo {
   font-family: var(--mono);
 }
 
@@ -249,6 +249,8 @@ ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 /* long loop notes are cut off; m shows all of it */
 .note-block .clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
 .row.stale .name, .row.stale .loop-next { color: var(--stale); }
+/* an Inbox with something in it is yellow like a loop without a next action: both want a decision */
+.row.inbox-full .name, .row.inbox-full .loop-next { color: var(--stale); }
 .row.waiting-loop .name, .row.waiting-loop .loop-next { color: var(--wait); }
 
 /* drag handles on the right edge of the loops and tasks panes, over the gap */
@@ -305,6 +307,9 @@ body.resizing { cursor: col-resize; user-select: none; }
 .tier.soon { color: var(--text); }
 .tier.important { color: var(--imp); }
 .tier.later { color: var(--text-3); }
+/* not now: kept with the loop, but quiet */
+.tier.not-now { color: var(--text-3); margin-top: 10px; }
+.row.not-now .name, .row.not-now .time { color: var(--text-3); }
 .row.quiet { opacity: .6; }
 .compact { padding: 2px 10px 2px 28px; font-size: 12px; color: var(--text-3); }
 .calm {
@@ -377,8 +382,8 @@ footer .mode {
   font-weight: 600;
 }
 footer .clip { color: var(--cut); }
-#searchBox, #cmdBox { color: var(--text); }
-#searchBox input, #cmdBox input {
+#searchBox, #cmdBox, #captureBox { color: var(--text); }
+#searchBox input, #cmdBox input, #captureBox input {
   width: 28ch;
   font: inherit;
   color: var(--text);

@@ -2,7 +2,7 @@
 
 import { test, eq, ok } from './harness.js';
 import { toggleToken, isWaiting, timeOf, resolveRelative, displayTitle } from '../src/model/markers.js';
-import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders, attention } from '../src/model/queries.js';
+import { openTasks, nextOf, isNext, loopStatus, timedTasks, dueReminders, attention, notNowLast, INBOX_ID } from '../src/model/queries.js';
 import { migrate, stampWaiting, SCHEMA_VERSION } from '../src/model/store.js';
 import { parseImport } from '../src/model/import.js';
 import { initialVim, vimKey } from '../src/editor/vim.js';
@@ -187,6 +187,23 @@ test('vim: : commands report an effect', () => {
   eq(vim('|x', [':', 'w', 'Escape']).cmd, null);
   eq(vim('|x', ['Escape']).effect, 'escape');
   eq(vim('|x', ['d', 'Escape']).effect, null, 'esc first cancels a pending command');
+});
+
+test('queries: every Inbox task stands on its own', () => {
+  const d = { loops: [], tasks: [task('a', { loopId: INBOX_ID }), task('b', { loopId: INBOX_ID }), task('c @w', { loopId: INBOX_ID })] };
+  eq(d.tasks.map(t => isNext(d, t)), [true, true, false]);
+});
+
+test('queries: not-now tasks are kept but never work', () => {
+  const d = { loops: [{ id: 'L' }], tasks: [task('idea @n', { loopId: 'L' }), task('real', { loopId: 'L' }), task('meet 9:00 @i @n', { loopId: 'L' })] };
+  eq(nextOf(d, 'L').title, 'real', 'skipped as next action');
+  ok(!isNext(d, d.tasks[0]));
+  eq(notNowLast(d.tasks).map(t => t.title), ['real', 'idea @n', 'meet 9:00 @i @n']);
+  eq(timedTasks(d.tasks), [], 'no appointment');
+  const g = attention(d, 600);
+  eq([g.now, g.important], [[], []], 'not in Today');
+  d.tasks[1].done = true;
+  eq(loopStatus(d, d.loops[0]), 'stale', 'only not-now left: still needs a next action');
 });
 
 // ── Util ──────────────────────────────────────────────────────────────────────

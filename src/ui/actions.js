@@ -1,8 +1,9 @@
 // What the normal-mode keys do. Each changes ui and/or the data; the caller re-renders.
 
 import { mutate, undo as undoChange } from '../model/store.js';
-import { toggleToken, stripTime, isWaiting, timeOf } from '../model/markers.js';
-import { ui, enter, narrow, PANES, db, virtuals, loopsList, currentLoop, currentTasks, selTask, selItem } from './view.js';
+import { toggleToken, stripToken, stripTime, isWaiting, isNotNow, timeOf } from '../model/markers.js';
+import { INBOX_ID } from '../model/queries.js';
+import { ui, enter, narrow, PANES, db, virtuals, loopsList, currentLoop, currentTasks, selTask, selItem, loopById } from './view.js';
 import { swap } from '../util.js';
 
 export function move(delta) {
@@ -39,7 +40,7 @@ export function shift(delta) {
     // swap with the visible neighbour, so it works inside a filtered view
     const ts = currentTasks();
     const a = ts[ui.taskIdx], b = ts[ui.taskIdx + delta];
-    if (!a || !b) return;
+    if (!a || !b || isNotNow(a) !== isNotNow(b)) return;   // z moves between the two parts
     mutate(() => { const ts = db().tasks; swap(ts, ts.indexOf(a), ts.indexOf(b)); });
     ui.taskIdx += delta;
   }
@@ -67,13 +68,13 @@ export function add(below) {
 
 export function rename() {
   const item = selItem();
-  if (item && item.id) enter('insert', { editing: { kind: 'rename', id: item.id } });
+  if (item && item.id && !item.kind) enter('insert', { editing: { kind: 'rename', id: item.id } });
 }
 
 export function remove() {
   if (ui.focus === 'loops') {
     const loop = currentLoop();
-    if (!loop.id) return;
+    if (loop.kind) return;   // the virtual entries stay
     // deleting a loop keeps its tasks, unassigned
     mutate(() => {
       const d = db();
@@ -96,9 +97,19 @@ export function toggleDone() {
 export function toggleMarker(tok) {
   const task = selTask();
   if (!task || task.done) return;
+  // not now belongs to a loop; elsewhere, :park hands it to Todoist
+  if (tok === '@n' && !isNotNow(task) && (task.loopId === INBOX_ID || !loopById(task.loopId))) {
+    ui.flash = { text: 'not now is for tasks in a loop · :park sends it to Todoist' };
+    return;
+  }
   // ending a wait also drops its check-back time
   const endsWait = tok === '@w' && isWaiting(task);
-  mutate(() => { task.title = toggleToken(endsWait ? stripTime(task.title) : task.title, tok); });
+  // waiting and not now exclude each other: someone else has it, or you hold it back
+  const other = { '@w': '@n', '@n': '@w' }[tok];
+  mutate(() => {
+    const title = other ? stripToken(task.title, other) : task.title;
+    task.title = toggleToken(endsWait ? stripTime(title) : title, tok);
+  });
   // handing something off is a good moment to write down where you are,
   // and to say when to look again
   if (tok === '@w' && isWaiting(task)) {

@@ -1,6 +1,6 @@
-// Left pane: All and Standalone, then the loops (or the templates in template mode).
+// Left pane: All, Inbox and Standalone, then the loops (or the templates in template mode).
 
-import { openTasks, nextOf, loopStatus } from '../../model/queries.js';
+import { openTasks, activeTasks, nextOf, loopStatus } from '../../model/queries.js';
 import { isWaiting, isImportant, displayTitle } from '../../model/markers.js';
 import { ui, db, virtuals, tasksOf, VIRTUAL } from '../view.js';
 import { highlight } from '../../features/search.js';
@@ -14,22 +14,26 @@ export function renderLoops() {
   const sel = i => i === ui.loopIdx && !(ed && ed.kind === 'new-loop');
 
   const rows = virtuals().map((l, i) => {
-    const ts = tasksOf(l);
-    const cls = ['row', 'virtual', `virtual-${l.kind}`, l.kind === 'standalone' && 'loop', sel(i) && 'sel',
+    const ts = activeTasks(tasksOf(l));   // not-now tasks don't count
+    const listed = l.kind !== 'all';
+    // anything in the Inbox still needs sorting
+    const cls = ['row', 'virtual', `virtual-${l.kind}`, listed && 'loop', sel(i) && 'sel',
+      l.kind === 'inbox' && ts.length && 'inbox-full',
       i === VIRTUAL.length - 1 && 'gap-after'].filter(Boolean).join(' ');
     const name = `<span class="name">${highlight(l.title, 'loops')}</span><span class="count">${ts.length}</span>`;
-    if (l.kind !== 'standalone') return `<li class="${cls}" data-i="${i}">${name}</li>`;
-    // like a loop: the first standalone task and how many follow
+    if (!listed) return `<li class="${cls}" data-i="${i}">${name}</li>`;
+    // like a loop: the first task and how many follow
     const first = ts[0];
+    const empty = l.kind === 'inbox' ? 'Nothing to sort' : 'No standalone tasks';
     return `<li class="${cls}" data-i="${i}">
       <div class="loop-line">${name}</div>
-      <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : 'No standalone tasks'}</span></div>
+      <div class="loop-next"><span class="name">${first ? `▸ ${esc(displayTitle(first))}` : empty}</span></div>
     </li>`;
   });
 
   d.loops.forEach((l, j) => {
     const i = virtuals().length + j;
-    const open = openTasks(d, l.id);
+    const open = activeTasks(openTasks(d, l.id));
     const next = nextOf(d, l.id);
     const status = loopStatus(d, l);
     // waiting count, then all open tasks (like All and Standalone)
@@ -38,6 +42,7 @@ export function renderLoops() {
     const nextLine = next ? `▸ ${esc(displayTitle(next))}`
       : ui.templates ? 'Empty template'
       : status === 'waiting' ? 'Waiting on something'
+      : openTasks(d, l.id).length ? 'Only not-now tasks'
       : 'No next action';
     // templates never go yellow/teal: they aren't work in progress
     const cls = ['row', 'loop', sel(i) && 'sel',

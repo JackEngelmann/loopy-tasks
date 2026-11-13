@@ -14,7 +14,7 @@ function modeLabel() {
     return `${ui.editing.kind === 'note' ? 'NOTE' : 'RENAME'} ${vim.cmd !== null ? 'COMMAND' : vim.mode.toUpperCase()}`;
   }
   // normal mode needs no label: the focused pane has the highlighted border
-  return { insert: 'INSERT', search: 'SEARCH', picker: 'TEMPLATE', todoist: 'TODOIST', command: 'COMMAND', help: 'HELP' }[ui.mode] || '';
+  return { insert: 'INSERT', search: 'SEARCH', picker: 'TEMPLATE', todoist: 'TODOIST', command: 'COMMAND', capture: 'INBOX', help: 'HELP' }[ui.mode] || '';
 }
 
 export function renderChrome() {
