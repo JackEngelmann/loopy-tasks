@@ -11,6 +11,7 @@ async function fresh({ width = 1400, stored = null } = {}) {
   if (stored) localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   localStorage.removeItem('loopy-notified');
   localStorage.removeItem('loopy-layout');
+  localStorage.removeItem('loopy-view');
   document.getElementById('app')?.remove();
   const frame = document.createElement('iframe');
   frame.id = 'app';
@@ -301,6 +302,99 @@ test('. checks waits: a task, or a whole loop at once; Today lists those due', a
   ok(text('#flash').includes('checked 3'));
   keys('j', '.');
   ok(text('#flash').includes('nothing waiting'));
+});
+
+// ── One-list views (:view g / i) ──────────────────────────────────────────────
+
+// two agents due for a look in the top loop, something to do in the second, a folded third
+function agentDay() {
+  const ago = min => Date.now() - min * 60_000;
+  const t = (id, title, loopId, extra = {}) => ({ id, title, loopId, done: false, createdAt: 1, ...extra });
+  return { version: 3, templates: { loops: [{ id: 'T', title: 'Tpl' }], tasks: [] },
+    loops: [{ id: 'W', title: 'Web' }, { id: 'L', title: 'Loopy' }, { id: 'A', title: 'Answer Anna', single: true }, { id: 'Q', title: 'Report' }],
+    tasks: [
+      t('w1', 'Agent one @w', 'W', { waitingSince: ago(30) }),
+      t('w2', 'Agent two @w', 'W', { waitingSince: ago(20) }),
+      t('w3', 'Agent three @w', 'W', { waitingSince: ago(2) }),
+      t('l1', 'Review the diff', 'L'),
+      t('l2', 'Update the README', 'L'),
+      t('a1', 'Answer Anna', 'A'),
+      t('q1', 'Write the summary', 'Q'),
+    ] };
+}
+
+test(':view g: Now and Check on top, the first loop you can do something in is green, no Today panel', async () => {
+  await fresh({ stored: agentDay() });
+  command('view g');
+  ok(doc.body.classList.contains('view-g'));
+  eq(w.getComputedStyle($('.side')).display, 'none');
+  eq($$('#loops .check-row').map(r => r.textContent.replace(/\s+/g, ' ').trim()), ['◷Web2 of 3 · oldest 30m'.replace('◷', '◷')]);
+  ok($('#loops .row.first').textContent.includes('Loopy'), 'Web is all waiting, so Loopy is green');
+  keys(']');
+  ok(selected('loops').startsWith('Web'), selected('loops'));
+  keys(']');
+  ok(selected('loops').startsWith('Loopy'));
+  keys('k', '.');
+  eq($$('#loops .check-row').length, 0, '. on the loop checks all its waits');
+  $$('#loops .row[data-i]').find(r => r.textContent.includes('Report')).click();
+  ok(selected('loops').startsWith('Report'));
+});
+
+test(':view i: one outline, folded below the green task; j, l, h and tab move through it', async () => {
+  await fresh({ stored: agentDay() });
+  command('view i');
+  eq(w.getComputedStyle($('#tasksPane')).display, 'none');
+  const rows = () => $$('#loops .ol-row').map(r => r.textContent.replace(/\s+/g, ' ').trim());
+  ok(rows()[0].startsWith('▾Web'), rows()[0]);
+  ok(rows().some(r => r.includes('Agent one')), 'open down to the green loop');
+  ok(rows().some(r => r.startsWith('▸Report')), 'folded below it: ' + rows().join(' | '));
+  const taskRows = () => $$('#loops .ol-row[data-ti]').map(r => r.textContent);
+  ok(!taskRows().some(r => r.includes('Write the summary')), 'folded: no task rows, only the next action on its line');
+  ok(rows().find(r => r.startsWith('▸Report')).includes('Write the summary'));
+  ok($('#loops .row.first').textContent.includes('Review the diff'), 'green');
+  keys('j');
+  ok(selected('loops').includes('Agent one'), 'j goes into the tasks');
+  keys('h');
+  ok(selected('loops').startsWith('▾Web'), 'h back up to the loop');
+  keys('Tab');
+  ok(!taskRows().some(r => r.includes('Agent one')), 'tab folds');
+  keys('G', 'k', 'l');
+  ok(selected('loops').includes('Write the summary'), 'l unfolds a folded loop and steps in: ' + selected('loops'));
+  keys('o');
+  typeInline('Send it');
+  eq(task('Send it').loopId, 'Q', 'o adds to the loop the cursor is in');
+  ok(rows().some(r => r.includes('Send it')));
+});
+
+test(':view i: ] stops at each wait due and at the first thing to do; space works in place', async () => {
+  await fresh({ stored: agentDay() });
+  command('view i');
+  keys(']');
+  ok(selected('loops').includes('Agent one'), selected('loops'));
+  keys(']');
+  ok(selected('loops').includes('Agent two'));
+  keys(']');
+  ok(selected('loops').includes('Review the diff'));
+  keys(' ');
+  ok(task('Review the diff').done);
+  ok($('#loops .row.first').textContent.includes('Update the README'), 'the next one turns green');
+});
+
+test(':view is remembered; templates always use the classic panes; unknown views say which exist', async () => {
+  await fresh({ stored: agentDay() });
+  command('view i');
+  w.location.reload();
+  await new Promise(r => document.getElementById('app').addEventListener('load', r, { once: true }));
+  w = document.getElementById('app').contentWindow;
+  doc = w.document;
+  ok(doc.body.classList.contains('view-i'));
+  keys('T');
+  ok(!doc.body.classList.contains('view-i'));
+  keys('T');
+  command('view x');
+  ok(text('#flash').includes('classic, g, i'));
+  command('view classic');
+  ok(!doc.body.classList.contains('view-i'));
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────

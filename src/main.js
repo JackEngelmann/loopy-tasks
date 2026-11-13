@@ -9,6 +9,7 @@ import { checkReminders } from './features/reminders.js';
 import { seed } from './features/seed.js';
 import './features/io.js';
 import { initSplitter } from './ui/splitter.js';
+import { loadView, outlineItems, outlineSelect } from './ui/views.js';
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
 // normal and picker mode keys come from the command table; the typing modes
@@ -29,8 +30,12 @@ document.addEventListener('keydown', e => {
 // ── Mouse ─────────────────────────────────────────────────────────────────────
 
 document.getElementById('loops').addEventListener('click', e => {
+  if (isEditing()) return;
+  // view i: the outline's rows, loops and tasks alike
+  const item = e.target.closest('.row[data-oi]');
+  if (item) { outlineSelect(outlineItems()[+item.dataset.oi]); render(); return; }
   const row = e.target.closest('.row[data-i]');
-  if (!row || isEditing()) return;
+  if (!row) return;
   if (+row.dataset.i !== ui.loopIdx) ui.taskIdx = 0;
   ui.loopIdx = +row.dataset.i;
   ui.focus = 'loops';
@@ -52,6 +57,7 @@ narrow.addEventListener('change', () => { ui.sideOpen = false; render(); });
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 load();
+loadView();
 if (!state.loops.length && !state.tasks.length) seed();
 initSplitter();
 render();

@@ -5,8 +5,10 @@ import { toggleToken, stripToken, stripTime, isWaiting, isNotNow, timeOf } from 
 import { INBOX_ID, CHECK_EVERY, openTasks } from '../model/queries.js';
 import { ui, enter, narrow, PANES, db, virtuals, loopsList, currentLoop, currentTasks, selTask, selItem, loopById } from './view.js';
 import { swap } from '../util.js';
+import { activeView, outlineMove, outlineJump, outlineSide } from './views.js';
 
 export function move(delta) {
+  if (activeView() === 'i') return outlineMove(delta);
   if (ui.focus === 'loops') {
     ui.loopIdx += delta;
     ui.taskIdx = 0;
@@ -16,6 +18,7 @@ export function move(delta) {
 }
 
 export function jump(toEnd) {
+  if (activeView() === 'i') return outlineJump(toEnd);
   if (ui.focus === 'loops') {
     ui.loopIdx = toEnd ? loopsList().length - 1 : 0;
     ui.taskIdx = 0;
@@ -25,6 +28,7 @@ export function jump(toEnd) {
 }
 
 export function focusPane(delta) {
+  if (activeView() === 'i') return outlineSide(delta);
   const i = PANES.indexOf(ui.focus) + delta;
   if (i >= 0 && i < PANES.length) ui.focus = PANES[i];
 }

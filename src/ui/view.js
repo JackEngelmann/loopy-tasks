@@ -29,6 +29,8 @@ export const ui = {
   todoist: null,
   sideOpen: false,    // right column shown as an overlay on narrow windows (s)
   help: false,        // the ? help shown over the editor (in normal mode it's ui.mode 'help')
+  view: 'classic',    // :view classic | g | i (ui/views.js)
+  unfold: {},         // view i: loops folded or unfolded by hand, by id
 };
 
 export const isEditing = () => ui.mode === 'insert' || ui.mode === 'modal';

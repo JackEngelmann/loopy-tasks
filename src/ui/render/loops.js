@@ -2,14 +2,19 @@
 
 import { openTasks, activeTasks, nextOf, loopStatus } from '../../model/queries.js';
 import { isWaiting, isImportant, displayTitle, timeOf, fmtTime } from '../../model/markers.js';
-import { ui, db, virtuals, tasksOf, singleTask, VIRTUAL } from '../view.js';
+import { ui, db, virtuals, tasksOf, singleTask, loopsList, VIRTUAL } from '../view.js';
+import { activeView, firstDoable, firstTaskOf } from '../views.js';
+import { topBlock, checkBlock, renderOutline } from './onelist.js';
 import { highlight } from '../../features/search.js';
 import { editInput } from '../inline-edit.js';
 import { noteLine } from './rows.js';
 import { esc } from '../../util.js';
 
 export function renderLoops() {
+  if (activeView() === 'i') return renderOutline();
   const d = db();
+  // view g: the first loop you can do something in is green
+  const first = activeView() === 'g' ? firstDoable() : null;
   const ed = ui.mode === 'insert' ? ui.editing : null;
   const adding = ed && (ed.kind === 'new-loop' || ed.kind === 'new-single');
   const sel = i => i === ui.loopIdx && !adding;
@@ -35,9 +40,9 @@ export function renderLoops() {
   d.loops.forEach((l, j) => {
     const i = virtuals().length + j;
     const single = singleTask(l);
-    if (single) return rows.push(singleRow(l, single, i, sel(i), ed));
+    if (single) return rows.push(singleRow(l, single, i, sel(i), ed, l === first));
     const open = activeTasks(openTasks(d, l.id));
-    const next = nextOf(d, l.id);
+    const next = l === first ? firstTaskOf(l) : nextOf(d, l.id);   // green: the thing to do now
     const status = loopStatus(d, l);
     // waiting count, then all open tasks (like All and Standalone)
     const waiting = open.filter(isWaiting).length;
@@ -48,7 +53,7 @@ export function renderLoops() {
       : openTasks(d, l.id).length ? 'Only not-now tasks'
       : 'No next action';
     // templates never go yellow/teal: they aren't work in progress
-    const cls = ['row', 'loop', sel(i) && 'sel',
+    const cls = ['row', 'loop', sel(i) && 'sel', l === first && 'first',
       !ui.templates && status === 'stale' && 'stale',
       !ui.templates && status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
     const name = ed && ed.kind === 'rename' && ed.id === l.id
@@ -62,15 +67,16 @@ export function renderLoops() {
     </li>`);
   });
   if (adding) rows.splice(virtuals().length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
+  if (activeView() === 'g') rows.unshift(topBlock(), checkBlock(l => loopsList().indexOf(l)), '<li class="divider">Loops</li>');
   if (!rows.length) rows.push(`<li class="empty">No templates yet. Press o to create one.</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
   document.getElementById('loopsTitle').textContent = ui.templates ? 'Templates' : 'Loops';
 }
 
 // a one-step loop is one line: its task, with the task's markers
-function singleRow(l, t, i, selected, ed) {
+function singleRow(l, t, i, selected, ed, isFirst) {
   const status = loopStatus(db(), l);
-  const cls = ['row', 'loop', 'single', selected && 'sel',
+  const cls = ['row', 'loop', 'single', selected && 'sel', isFirst && 'first',
     status === 'stale' && 'stale', status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
   const time = timeOf(t);
   const name = ed && ed.kind === 'rename' && ed.id === t.id

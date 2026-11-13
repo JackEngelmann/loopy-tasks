@@ -20,6 +20,13 @@ and open <http://localhost:8000>. Reminders (system notifications for timed task
 - **Middle:** the selected loop's note and open tasks; not-now tasks (`z`) last, under a quiet heading. They are never a next action, don't count, and stay out of Today and reminders, so a loop with only those left is yellow.
 - **Right (read-only): Today**, what needs you across all loops, most urgent first: **Now** (its time has come, including check-backs of waiting tasks), **Soon** (within 30 min), **Check** (waiting without a check-back time and not looked at for 10 min; `.` marks it checked), **Important**, **Later**, and **Plan** (loops without a next action). When nothing is due it says so. The header badge and the tab title count what's in Now. On narrow windows this folds into a line above the panes: a yellow strip while something is due now or soon, a quiet line otherwise; `s` shows the panel as an overlay.
 
+## Views (on trial)
+
+`:view g` and `:view i` try two layouts that fold the Today panel into one list read from the top; `:view classic` goes back. The browser remembers the choice; template mode always uses the classic panes. Both put **Now** (its time has come) and today's remaining times at the top, and the first loop with something you can do now (timed tasks don't count) is green. `]` / `[` go to the next / previous thing that needs you.
+
+- **G:** below Now, a **Check** block with one row per loop whose waits are due for a look, in loop order (click to select the loop, `.` on the loop checks all its waits). Your loops follow, with the middle pane as before.
+- **I:** one column, an outline: each loop with its tasks under it. Loops down to the green one are open, the ones below folded to one line with their next action. `j`/`k` move through loops and tasks alike, `l` unfolds a loop and steps in, `h` goes back up or folds, `tab` folds or unfolds.
+
 ## Markers in task text
 
 | Marker          | Meaning                                                  |
@@ -57,6 +64,7 @@ The bottom line shows the main keys for where you are; `?` lists all of them. In
 | `u`             | undo                                            |
 | `?`             | all keys                                        |
 | `:export` / `:import` | download all data / replace it from a file |
+| `:view g` / `i` / `classic` | switch the layout (see Views)    |
 | `:park [when]`  | move the task to Todoist (see below)            |
 
 ## Todoist
