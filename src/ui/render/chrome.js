@@ -4,7 +4,6 @@ import { displayTitle } from '../../model/markers.js';
 import { ui, PANES, db } from '../view.js';
 import { hintsFor } from '../commands.js';
 import { vim } from '../../editor/modal.js';
-import { activeView } from '../views.js';
 
 // the modal editor has its own vim modes, each with its own hints
 const hintMode = () => ui.help ? 'help' : ui.mode !== 'modal' ? ui.mode
@@ -21,7 +20,6 @@ function modeLabel() {
 export function renderChrome() {
   PANES.forEach(p => document.getElementById(p + 'Pane').classList.toggle('focused', ui.focus === p));
   document.body.classList.toggle('template-mode', ui.templates);
-  ['g', 'i'].forEach(v => document.body.classList.toggle(`view-${v}`, activeView() === v));
 
   // the selection shows in the panes; the header only warns that you're editing templates
   document.getElementById('crumb').textContent = ui.templates ? 'editing templates' : '';
@@ -36,5 +34,5 @@ export function renderChrome() {
   flash.textContent = ui.flash ? ui.flash.text : '';
   flash.classList.toggle('error', !!(ui.flash && ui.flash.error));
   document.getElementById('hints').innerHTML =
-    hintsFor(hintMode(), { pane: ui.focus, templates: ui.templates, kind: ui.editing && ui.editing.kind, view: activeView() });
+    hintsFor(hintMode(), { pane: ui.focus, templates: ui.templates, kind: ui.editing && ui.editing.kind });
 }

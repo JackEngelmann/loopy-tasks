@@ -18,7 +18,7 @@ export function noteLine(item, cls, full) {
 // marks: show next-action markers and search hits (the middle pane);
 // notes: show the note below the task (else just ✎);
 // label: text at the end of the row instead of the default ("40m late", or the waiting age);
-// below: a second line instead (the Today panel: loop and how late / when)
+// below: a second line instead (Now on top: loop and how late)
 export function taskRow(t, i, { selected, showTag, marks, notes, label, below, cls: extra }) {
   const ed = ui.editing;
   const time = timeOf(t);
@@ -49,7 +49,7 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
   const star = !t.done && isImportant(t) ? `<span class="star">★</span>` : '';
   // how late it is, else how long it's been waiting
   const when = label ?? (due ? `${duration(now - time)} late` : null);
-  // (a waiting task with a time shows that time instead; Today has the age)
+  // (a waiting task with a time shows that time instead)
   const tail = below !== undefined ? (below ? `<div class="row-below">${below}</div>` : '')
     : when ? `<span class="when">${when}</span>`
     : !t.done && t.waitingSince && time === null ? `<span class="wait-age">${age(t.waitingSince)}</span>` : '';

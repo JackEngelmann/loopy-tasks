@@ -93,42 +93,12 @@ footer .flash.error { color: var(--cut); }
 main {
   flex: 1;
   display: grid;
-  /* --loops-w and --side-w are set by dragging the edges between the panes (splitter.js) */
-  grid-template-columns: var(--loops-w, minmax(260px, 28%)) 1fr var(--side-w, minmax(240px, 28%));
+  /* --loops-w is set by dragging the edge between the panes (splitter.js) */
+  grid-template-columns: var(--loops-w, minmax(320px, 42%)) 1fr;
   gap: 8px;
   padding: 0 8px;
   min-height: 0;
 }
-
-/* right column: Today, what needs you sorted by urgency (read-only) */
-.side { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
-.side .pane { flex: 1 1 0; }
-
-/* narrow windows (e.g. half a screen): the right column folds into a line: a yellow
-   strip when something is due now or soon, a quiet line otherwise; s shows the panel */
-#summary {
-  display: none;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 0 14px 6px;
-  font-size: 12px;
-  color: var(--text-2);
-  cursor: pointer;
-}
-#summary .wait { color: var(--wait); }
-#summary .time { color: var(--text); }
-#summary .hint { color: var(--text-3); margin-left: auto; }
-#summary.urgent {
-  margin: 0 8px 8px;
-  padding: 5px 10px;
-  gap: 4px 14px;
-  border-radius: 6px;
-  background: var(--stale-bg);
-  border: 1px solid color-mix(in srgb, var(--stale) 50%, transparent);
-  color: var(--stale);
-}
-#summary.urgent .soon, #summary.urgent .soon .time { color: var(--text); }
-#summary.urgent .now .time { color: var(--stale); font-weight: 600; }
 
 .badge {
   background: var(--stale);
@@ -139,24 +109,7 @@ main {
   font-weight: 600;
 }
 @media (max-width: 1100px) {
-  main { grid-template-columns: var(--loops-w, minmax(220px, 38%)) 1fr; }
-  #sideSplitter { display: none; }
-  #summary { display: flex; }
-  .side { display: none; }
-  body.side-open .side {
-    display: flex;
-    position: fixed;
-    top: 64px;
-    right: 8px;
-    bottom: 36px;
-    width: min(380px, calc(100vw - 32px));
-    padding: 8px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
-    z-index: 5;
-  }
+  main { grid-template-columns: var(--loops-w, minmax(260px, 45%)) 1fr; }
 }
 
 .pane {
@@ -172,7 +125,7 @@ main {
 .pane.focused { box-shadow: 0 0 0 1px color-mix(in srgb, var(--sel) 45%, transparent); }
 .pane.focused .pane-head { color: var(--sel); }
 /* overlays keep a border so they stand off the panes behind them */
-#picker, #todoist, #help, #noteBox, body.side-open .side { border: 1px solid var(--border); }
+#picker, #todoist, #help, #noteBox { border: 1px solid var(--border); }
 /* the editor, picker and help sit on a veil, with a focus-colored outline */
 #backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 9; }
 #picker, #todoist, #help, #noteBox { border-color: color-mix(in srgb, var(--sel) 55%, transparent); }
@@ -298,7 +251,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .tag { color: var(--text-3); font-size: 12px; }
 .tag.none { color: var(--text-3); }
 
-/* Today panel: groups by urgency */
+/* group headings: Now and Check on top, Not now in a loop */
 .tier {
   padding: 8px 10px 2px;
   font-size: 11px;
@@ -308,26 +261,12 @@ body.resizing { cursor: col-resize; user-select: none; }
   justify-content: space-between;
 }
 .tier.now { color: var(--stale); }
-.tier.soon { color: var(--text); }
-.tier.important { color: var(--imp); }
-.tier.later { color: var(--text-3); }
 .tier.check { color: var(--wait); }
 /* not now: kept with the loop, but quiet */
 .tier.not-now { color: var(--text-3); margin-top: 10px; }
 .row.not-now .name, .row.not-now .time { color: var(--text-3); }
-.row.quiet { opacity: .6; }
-.compact { padding: 2px 10px 2px 28px; font-size: 12px; color: var(--text-3); }
-.calm {
-  margin: 10px;
-  padding: 10px;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  color: var(--text-2);
-  font-size: 12px;
-}
-.calm b { color: var(--text); font-weight: 600; }
 .when { font-size: 11px; color: var(--text-3); white-space: nowrap; }
-/* Today rows: the loop and how late / when on a second line */
+/* Now rows: the loop and how late on a second line */
 .row.two-line { flex-wrap: wrap; row-gap: 0; }
 .row-below {
   flex-basis: 100%;
@@ -340,9 +279,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 }
 .row.due .row-below { color: var(--stale); }
 /* time labels inside a line take the line's color and size */
-.row-below .when, #summary .when, #summary .count, .compact .time { color: inherit; font-size: inherit; }
-.row.soon-row .row-below { color: var(--text-2); }
-#today .check.wait { color: var(--wait); }
+.row-below .when { color: inherit; font-size: inherit; }
 
 .time { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 /* past and not done: needs attention, wherever it's shown */
@@ -500,14 +437,7 @@ mark { background: var(--mark); color: inherit; border-radius: 2px; }
 footer kbd { color: var(--text-2); }
 footer .spacer { flex: 1; }
 
-/* ── one-list views (:view g / i, ui/views.js) ── */
-/* no Today panel: Now and the times sit on top of the loops pane */
-body.view-g main { grid-template-columns: var(--loops-w, minmax(320px, 42%)) 1fr; }
-body.view-i main { grid-template-columns: minmax(0, 1fr); }
-body.view-g .side, body.view-i .side, body.view-g #summary, body.view-i #summary,
-body.view-g #sideSplitter, body.view-i #tasksPane, body.view-i #loopsSplitter { display: none !important; }
-body.view-i #loopsPane { width: 100%; max-width: 900px; justify-self: center; }
-
+/* ── the top of the loops pane: Now, today's times, Check (render/top.js) ── */
 .timeline { display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 4px 10px 6px; font-size: 12px; color: var(--text-2); }
 .timeline .label { font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--text-3); }
 .timeline .time { color: var(--text); }
@@ -521,17 +451,5 @@ body.view-i #loopsPane { width: 100%; max-width: 900px; justify-self: center; }
 .row.first { background: var(--start-bg); box-shadow: inset 3px 0 0 var(--start); }
 .row.first .loop-next, .row.first .check { color: var(--start); }
 .pane.focused .row.first.sel { box-shadow: inset 3px 0 0 var(--sel); background: color-mix(in srgb, var(--start) 22%, transparent); }
-
-/* the outline: loops with their tasks indented under them */
-.ol-row { padding-left: calc(10px + var(--lvl, 0) * 22px); }
-.ol-loop { padding-block: 4px; }
-.ol-loop > .name { font-weight: 600; }
-.ol-loop.single > .name { font-weight: normal; }
-.fold { width: 1ch; flex-shrink: 0; color: var(--text-3); font-size: 11px; }
-.ol-summary { margin-left: auto; display: flex; gap: 10px; font-size: 12px; color: var(--text-3); min-width: 0; overflow: hidden; }
-.ol-next { overflow: hidden; text-overflow: ellipsis; }
-.due-check { color: var(--wait); font-weight: 600; font-family: var(--mono); font-size: 11px; }
-.row.ol-loop.has-check { box-shadow: inset 3px 0 0 var(--wait); }
-.pane.focused .row.ol-loop.has-check.sel { box-shadow: inset 3px 0 0 var(--sel); }
-.ol-tier { padding-left: 42px; }
-.ol-note { padding-left: 42px; }
+.check-row.sel { box-shadow: inset 3px 0 0 var(--border); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.pane.focused .check-row.sel { box-shadow: inset 3px 0 0 var(--sel); background: color-mix(in srgb, var(--sel) 16%, transparent); }

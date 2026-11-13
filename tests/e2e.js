@@ -12,7 +12,7 @@ async function fresh({ width = 1400, stored = null } = {}) {
   if (stored) localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   localStorage.removeItem('loopy-notified');
   localStorage.removeItem('loopy-layout');
-  localStorage.removeItem('loopy-view');
+  localStorage.removeItem('loopy-check-every');
   document.getElementById('app')?.remove();
   const frame = document.createElement('iframe');
   frame.id = 'app';
@@ -58,17 +58,19 @@ function modalWith(value, cursor = 0) {
   note().setSelectionRange(cursor, cursor + 1);
 }
 
-// the rows of one group in the Today panel, as text
+// the rows of one group at the top of the loops pane (Now, Check), as text
 function group(name) {
   const rows = [];
   let inside = false;
-  for (const li of $$('#today li')) {
+  for (const li of $$('#loops li')) {
+    if (li.classList.contains('divider')) break;
     if (li.classList.contains('tier')) inside = li.classList.contains(name);
     else if (inside) rows.push(li.textContent.replace(/\s+/g, ' '));
   }
   return rows.join(' | ');
 }
 
+const checkRows = () => $$('#loops .check-row').map(r => r.textContent.replace(/\s+/g, ' ').trim());
 const hhmm = min => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 
@@ -76,7 +78,7 @@ const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMin
 
 test('seed data shows All, Inbox, four loops and two one-step loops', async () => {
   await fresh();
-  eq($$('#loops .row').length, 8);
+  eq($$('#loops .row[data-i]').length, 8);
   eq(selected('loops').startsWith('All'), true);
   eq($$('#tasks .row').length, 11);
 });
@@ -145,7 +147,6 @@ test('w marks waiting with a timestamp and a note hint, w again clears it', asyn
   ok(task('Collect feedback').title.endsWith('@w'));
   ok(task('Collect feedback').waitingSince > 0, 'waitingSince set');
   eq(text('#flash'), '+20m in the title (r) sets a check-back · m to note where you left off');
-  ok(text('#today').includes('Collect feedback'), 'listed under Later');
   keys('w');
   eq(task('Collect feedback').title, 'Collect feedback on current site');
   eq(task('Collect feedback').waitingSince, undefined);
@@ -155,10 +156,12 @@ test('w marks waiting with a timestamp and a note hint, w again clears it', asyn
   eq(task('Collect feedback').title, 'Collect feedback', 'w on a waiting task drops its check-back time too');
 });
 
-test('i marks important and shows it on the right', async () => {
+test('i marks important: a star on the task and on its loop', async () => {
   await fresh();
-  keys('j', 'j', 'l', 'j', 'i');
-  ok(group('important').includes('Collect feedback'));
+  keys('j', 'j', 'j', 'l', 'i');   // Quarterly report
+  ok(task('Draft sent').title.endsWith('@i'));
+  ok($('#tasks .row.sel .star'));
+  ok(selected('loops').includes('★'));
 });
 
 test('space marks done and hides the task; u brings it back', async () => {
@@ -195,17 +198,15 @@ test('x / p move a task to another loop', async () => {
   eq(text('#clip'), '');
 });
 
-test('Today: a check-back moves to Soon, an overdue task to Now with a badge', async () => {
+test('top of the loops pane: times still ahead in one line, Now once their time has come, with a badge', async () => {
   await fresh();
   keys('j', 'j', 'l', 'o');
   typeInline('Check agent @w +10m');
-  ok(group('soon').includes('Check agent'), group('soon'));
-  ok(group('soon').includes('Website redesign · check back in'), group('soon'));   // "in 10m", less just before midnight
-  eq(text('#today').split('Check agent').length, 2, 'listed once');
+  ok(text('#loops .timeline').includes('◷ Check agent'), text('#loops .timeline'));   // unless it's just before midnight
   keys('o');
   typeInline(`Overdue thing ${hhmm(Math.max(nowMin() - 5, 0))}`);
   ok(group('now').includes('Overdue thing'), group('now'));
-  ok(group('now').includes('5m late'), group('now'));
+  ok(group('now').includes('Website redesign · 5m late'), group('now'));
   ok(!$('#nowBadge').hidden);
   ok(doc.title.startsWith('('), 'tab title has the count');
   ok($$('#tasks .row.due').some(r => r.textContent.includes('Overdue thing')), 'overdue in the middle pane too');
@@ -213,14 +214,14 @@ test('Today: a check-back moves to Soon, an overdue task to Now with a badge', a
   ok(!group('now').includes('Overdue thing'));
 });
 
-test('Today: calm when nothing is due', async () => {
+test('nothing on top when nothing is due', async () => {
   // an empty store would get the seed data, which has overdue tasks
   await fresh({ stored: { version: 2, loops: [{ id: 'L', title: 'Calm loop' }], tasks: [], templates: { loops: [], tasks: [] } } });
   keys('j', 'j', 'l', 'o');
   typeInline('Something @i');
-  ok(text('#today').startsWith('Nothing needs you right now'), text('#today'));
+  ok(!$('#loops .tier') && !$('#loops .divider'), 'no Now, no Check');
   ok($('#nowBadge').hidden, 'badge hidden');
-  ok(group('important').includes('Something'), group('important'));
+  ok($('#loops .row.first').textContent.includes('Calm loop'), 'green: the thing to do');
 });
 
 test('+20m becomes a clock time', async () => {
@@ -284,7 +285,7 @@ test('space on a loop row finishes it once nothing is open; d sends its tasks to
   ok(text('#flash').includes('finished'));
 });
 
-test('. checks waits: a task, or a whole loop at once; Today lists those due', async () => {
+test('. checks waits: a task, or a whole loop at once; the Check row says how many', async () => {
   const ago = min => Date.now() - min * 60_000;
   await fresh({ stored: { version: 3, templates: { loops: [], tasks: [] }, loops: [{ id: 'L', title: 'Agents' }, { id: 'M', title: 'Quiet' }], tasks: [
     { id: 'a', title: 'Agent A @w', loopId: 'L', done: false, waitingSince: ago(20) },
@@ -292,20 +293,19 @@ test('. checks waits: a task, or a whole loop at once; Today lists those due', a
     { id: 'c', title: 'Agent C @w', loopId: 'L', done: false, waitingSince: ago(CHECK_EVERY - 1) },
     { id: 'd', title: 'Write', loopId: 'M', done: false },
   ] } });
-  ok(group('check').includes('Agent A') && group('check').includes('Agent B'), group('check'));
-  ok(!group('check').includes('Agent C'), 'not waiting long enough yet');
-  ok(group('check').includes('checked 12m ago'));
+  eq(checkRows(), ['◷Agents2 of 3 · oldest 20m'], 'C is not due yet');
   keys('j', 'j', 'l', '.');
   ok(task('Agent A').checkedAt > ago(1));
-  ok(!group('check').includes('Agent A'));
+  eq(checkRows(), ['◷Agents1 of 3 · 12m']);
+  ok(text('#flash').includes(`again in ${CHECK_EVERY}m`));
   keys('h', '.');
-  eq(group('check'), '', 'the loop row checks all its waits');
+  eq(checkRows(), [], 'the loop row checks all its waits');
   ok(text('#flash').includes('checked 3'));
   keys('j', '.');
   ok(text('#flash').includes('nothing waiting'));
 });
 
-// ── One-list views (:view g / i) ──────────────────────────────────────────────
+// ── The top of the loops pane: Now, Check, the green loop ──────────────────────
 
 // two agents due for a look in the top loop, something to do in the second, a folded third
 function agentDay() {
@@ -321,92 +321,74 @@ function agentDay() {
       t('l2', 'Update the README', 'L'),
       t('a1', 'Answer Anna', 'A'),
       t('q1', 'Write the summary', 'Q'),
+      t('q2', 'Waiting on finance @w', 'Q', { waitingSince: ago(40) }),
     ] };
 }
 
-test(':view g: Now and Check on top, the first loop you can do something in is green, no Today panel', async () => {
+test('top of the loops pane: Check rows per loop, and the first loop you can do something in is green', async () => {
   await fresh({ stored: agentDay() });
-  command('view g');
-  ok(doc.body.classList.contains('view-g'));
-  eq(w.getComputedStyle($('.side')).display, 'none');
-  eq($$('#loops .check-row').map(r => r.textContent.replace(/\s+/g, ' ').trim()), ['◷Web2 of 3 · oldest 30m'.replace('◷', '◷')]);
+  ok(!$('.side') && !$('#today'), 'no Today panel');
+  eq(checkRows(), ['◷Web2 of 3 · oldest 30m', '◷Report1 · 40m']);
   ok($('#loops .row.first').textContent.includes('Loopy'), 'Web is all waiting, so Loopy is green');
+  ok($('#loops .row.first').textContent.includes('Review the diff'));
   keys(']');
-  ok(selected('loops').startsWith('Web'), selected('loops'));
-  keys(']');
-  ok(selected('loops').startsWith('Loopy'));
-  keys('k', '.');
-  eq($$('#loops .check-row').length, 0, '. on the loop checks all its waits');
+  ok($('#loops .check-row.sel').textContent.includes('Web'));
+  keys(']', ']');
+  ok(selected('loops').startsWith('Loopy'), '] ends at the green loop');
+  keys('[');
+  ok($('#loops .check-row.sel').textContent.includes('Report'));
+  $('#loops .check-row').click();
+  ok($('#loops .check-row.sel').textContent.includes('Web'), 'a click puts the cursor there');
   $$('#loops .row[data-i]').find(r => r.textContent.includes('Report')).click();
   ok(selected('loops').startsWith('Report'));
+  ok(!$('#loops .check-row.sel'));
 });
 
-test(':view i: one outline, folded below the green task; j, l, h and tab move through it', async () => {
+test('Check rows: the cursor stops on them above the loops; . checks the loop and moves on, l opens it', async () => {
   await fresh({ stored: agentDay() });
-  command('view i');
-  eq(w.getComputedStyle($('#tasksPane')).display, 'none');
-  const rows = () => $$('#loops .ol-row').map(r => r.textContent.replace(/\s+/g, ' ').trim());
-  ok(rows()[0].startsWith('▾Web'), rows()[0]);
-  ok(rows().some(r => r.includes('Agent one')), 'open down to the green loop');
-  ok(rows().some(r => r.startsWith('▸Report')), 'folded below it: ' + rows().join(' | '));
-  const taskRows = () => $$('#loops .ol-row[data-ti]').map(r => r.textContent);
-  ok(!taskRows().some(r => r.includes('Write the summary')), 'folded: no task rows, only the next action on its line');
-  ok(rows().find(r => r.startsWith('▸Report')).includes('Write the summary'));
-  ok($('#loops .row.first').textContent.includes('Review the diff'), 'green');
-  keys('j');
-  ok(selected('loops').includes('Agent one'), 'j goes into the tasks');
-  keys('h');
-  ok(selected('loops').startsWith('▾Web'), 'h back up to the loop');
-  keys('Tab');
-  ok(!taskRows().some(r => r.includes('Agent one')), 'tab folds');
-  keys('G', 'k', 'l');
-  ok(selected('loops').includes('Write the summary'), 'l unfolds a folded loop and steps in: ' + selected('loops'));
-  keys('o');
-  typeInline('Send it');
-  eq(task('Send it').loopId, 'Q', 'o adds to the loop the cursor is in');
-  ok(rows().some(r => r.includes('Send it')));
+  keys('k');
+  ok($('#loops .check-row.sel').textContent.includes('Report'), 'k from the top goes up into the Check rows');
+  eq(text('#tasksTitle'), 'Report', 'the middle pane shows its loop');
+  ok(!$('#loops .row[data-i].sel'), 'one cursor');
+  keys('k');
+  ok($('#loops .check-row.sel').textContent.includes('Web'));
+  keys('j', 'j');
+  ok(selected('loops').startsWith('All'), 'j past the last one goes on to the loops');
+  keys('g');
+  ok($('#loops .check-row.sel').textContent.includes('Web'), 'g: the first Check row');
+  keys('l');
+  ok(focused('tasks'));
+  ok(selected('tasks').includes('Agent one'), 'l opens the loop on its first wait due');
+  keys('h', 'g', '.');
+  ok(task('Agent one').checkedAt && task('Agent three').checkedAt, '. checks the whole loop');
+  ok($('#loops .check-row.sel').textContent.includes('Report'), 'and moves on to the next Check row');
+  keys('.');
+  eq(checkRows(), []);
+  ok(selected('loops').startsWith('Loopy'), 'after the last one: the green loop');
 });
 
-test(':view i: ] stops at each wait due and at the first thing to do; space works in place', async () => {
+test(':check sets how long a wait goes without a look', async () => {
   await fresh({ stored: agentDay() });
-  command('view i');
-  keys(']');
-  ok(selected('loops').includes('Agent one'), selected('loops'));
-  keys(']');
-  ok(selected('loops').includes('Agent two'));
-  keys(']');
-  ok(selected('loops').includes('Review the diff'));
-  keys(' ');
-  ok(task('Review the diff').done);
-  ok($('#loops .row.first').textContent.includes('Update the README'), 'the next one turns green');
+  eq(checkRows().length, 2);
+  command('check 45');
+  eq(checkRows(), [], 'none has gone 45 minutes');
+  ok(text('#flash').includes('every 45 min'));
+  eq(w.localStorage.getItem('loopy-check-every'), '45');
+  command('check');
+  ok(text('#flash').includes('every 45 min'));
+  command('check 0');
+  ok(text('#flash').includes('1 to 240'));
 });
 
 test('] and [ work when typed with Option or AltGr (German keyboards); real shortcuts stay with the browser', async () => {
   await fresh({ stored: agentDay() });
-  command('view g');
   doc.body.dispatchEvent(event(']', { altKey: true }));   // macOS German: Option+6
-  ok(selected('loops').startsWith('Web'), selected('loops'));
+  const onWeb = () => $('#loops .check-row.sel')?.textContent.includes('Web');
+  ok(onWeb());
   doc.body.dispatchEvent(event('j', { metaKey: true }));
-  ok(selected('loops').startsWith('Web'), 'Cmd+j is not j');
+  ok(onWeb(), 'Cmd+j is not j');
   doc.body.dispatchEvent(event('j', { ctrlKey: true }));
-  ok(selected('loops').startsWith('Web'), 'Ctrl+j is not j');
-});
-
-test(':view is remembered; templates always use the classic panes; unknown views say which exist', async () => {
-  await fresh({ stored: agentDay() });
-  command('view i');
-  w.location.reload();
-  await new Promise(r => document.getElementById('app').addEventListener('load', r, { once: true }));
-  w = document.getElementById('app').contentWindow;
-  doc = w.document;
-  ok(doc.body.classList.contains('view-i'));
-  keys('T');
-  ok(!doc.body.classList.contains('view-i'));
-  keys('T');
-  command('view x');
-  ok(text('#flash').includes('classic, g, i'));
-  command('view classic');
-  ok(!doc.body.classList.contains('view-i'));
+  ok(onWeb(), 'Ctrl+j is not j');
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -434,7 +416,7 @@ test('c captures into the Inbox from anywhere; the Inbox is yellow while not emp
   ok(focused('tasks'));
   capture('never mind', 'Escape');
   ok(!task('never mind'));
-  const inbox = $$('#loops .row')[1];
+  const inbox = $$('#loops .row[data-i]')[1];
   ok(inbox.classList.contains('inbox-full'));
   eq(inbox.querySelector('.count').textContent, '1');
   ok(inbox.textContent.includes('▸ Call the bank'));
@@ -477,7 +459,7 @@ test('z: not now moves a task to the end of its loop and out of the work', async
   ok($('#tasks .row:last-child').classList.contains('not-now'));
   ok(selected('loops').includes('▸ Collect feedback'), 'the next action moves on');
   eq(count(), '4', 'not counted');
-  ok(!text('#today').includes('Sketch new'), 'not in Today, though important');
+  ok(!group('now').includes('Sketch new'));
   ok(selected('tasks').includes('Collect feedback'), 'the cursor stays in place');
   // o on a not-now task adds another one
   keys('G', 'o');
@@ -888,15 +870,6 @@ test(': opens the command line; unknown commands say so', async () => {
   eq(text('#flash'), '');
 });
 
-test('narrow window: summary line, s toggles the side overlay', async () => {
-  await fresh({ width: 900 });
-  ok($('#summary').offsetHeight > 0, 'summary visible');
-  keys('s');
-  ok(doc.body.classList.contains('side-open'));
-  keys('Escape');
-  ok(!doc.body.classList.contains('side-open'));
-});
-
 test('dragging the edge resizes the loops pane; double-click resets', async () => {
   await fresh();
   const handle = $('#loopsSplitter');
@@ -916,26 +889,6 @@ test('dragging the edge resizes the loops pane; double-click resets', async () =
   handle.dispatchEvent(new w.MouseEvent('dblclick', { bubbles: true }));
   eq(pane.offsetWidth, before);
   eq(JSON.parse(w.localStorage.getItem('loopy-layout')), {});
-});
-
-test('dragging the second edge resizes the right column', async () => {
-  await fresh();
-  const handle = $('#sideSplitter');
-  const side = $('.side');
-  const before = side.offsetWidth;
-  const right = $('main').getBoundingClientRect().right;
-  const pointer = (type, x) => handle.dispatchEvent(new w.PointerEvent(type, { clientX: x, bubbles: true, pointerId: 1 }));
-  pointer('pointerdown', right - 8 - before);
-  pointer('pointermove', right - 8 - 450);
-  pointer('pointerup', right - 8 - 450);
-  eq(side.offsetWidth, 450);
-  ok($('#tasksPane').offsetWidth >= 260, 'tasks keeps its minimum');
-  pointer('pointerdown', 0);
-  pointer('pointermove', 0);
-  pointer('pointerup', 0);
-  eq($('#tasksPane').offsetWidth, 260, 'dragging all the way left stops at the tasks minimum');
-  handle.dispatchEvent(new w.MouseEvent('dblclick', { bubbles: true }));
-  eq(side.offsetWidth, before);
 });
 
 test('data saved before versioning still loads', async () => {

@@ -18,7 +18,7 @@ import { startSearch, searchNext } from '../features/search.js';
 import { toggleTemplates, openPicker, pickerMove, pickerChoose } from '../features/templates.js';
 import { startCommand } from '../features/cmdline.js';
 import { startCapture } from '../features/capture.js';
-import { nextAttention, toggleFold } from './views.js';
+import { nextAttention } from './attention.js';
 import { openTodoist, todoistMove, todoistMark, todoistChoose } from '../features/todoist.js';
 import { openModal } from '../editor/modal.js';
 
@@ -27,8 +27,6 @@ const inTasks = ctx => ctx.pane === 'tasks' && !ctx.templates;
 const inTemplates = ctx => ctx.templates;
 const notTemplates = ctx => !ctx.templates;
 const isNote = ctx => ctx.kind === 'note';
-const oneList = ctx => ctx.view !== 'classic';
-const outline = ctx => ctx.view === 'i';
 
 export const COMMANDS = [
   // ── normal ──
@@ -37,14 +35,13 @@ export const COMMANDS = [
     keys: { j: () => act.move(1), ArrowDown: () => act.move(1), k: () => act.move(-1), ArrowUp: () => act.move(-1) } },
   { modes: ['normal'], hint: 'J/K', label: 'reorder', keys: { J: () => act.shift(1), K: () => act.shift(-1) } },
   { modes: ['normal'], hint: 'g/G', label: 'first/last', keys: { g: () => act.jump(false), G: () => act.jump(true) } },
-  { modes: ['normal'], hint: 'l', label: 'open', show: ctx => inLoops(ctx) && !outline(ctx), essential: true,
+  { modes: ['normal'], hint: 'l', label: 'open', show: inLoops, essential: true,
     keys: { l: () => act.focusPane(1), ArrowRight: () => act.focusPane(1) } },
   { modes: ['normal'], hint: 'h', label: 'back', keys: { h: () => act.focusPane(-1), ArrowLeft: () => act.focusPane(-1) } },
   { modes: ['normal'], help: ['enter', 'open the loop / done'],
     keys: { Enter: () => { if (ui.focus === 'loops') act.focusPane(1); else act.toggleDone(); } } },
-  { modes: ['normal'], hint: ']/[', label: 'next that needs you', show: oneList, essential: true,
+  { modes: ['normal'], hint: ']/[', label: 'next that needs you', show: notTemplates, essential: true,
     keys: { ']': () => nextAttention(1), '[': () => nextAttention(-1) } },
-  { modes: ['normal'], hint: 'tab', label: 'fold', show: outline, keys: { Tab: toggleFold } },
   { modes: ['normal'], hint: 'c', label: 'to the Inbox', show: notTemplates, keys: { c: startCapture } },
   { modes: ['normal'], hint: 'o/O',
     label: ctx => `new ${ctx.templates ? (ctx.pane === 'loops' ? 'template ' : 'task ') : ctx.pane === 'loops' ? 'loop ' : ''}below/above`,
@@ -69,7 +66,6 @@ export const COMMANDS = [
   { modes: ['normal'], hint: '/', label: 'search', keys: { '/': startSearch } },
   { modes: ['normal'], hint: 'n/N', label: 'next/prev match', keys: { n: () => searchNext(1), N: () => searchNext(-1) } },
   { modes: ['normal'], hint: 'u', label: 'undo', keys: { u: act.undo } },
-  { modes: ['normal'], hint: 's', label: 'Today panel (narrow windows)', keys: { s: act.toggleSide } },
   { modes: ['normal'], help: ['esc', 'clear cut and search'], keys: { Escape: act.clearMarks } },
   { modes: ['normal'], hint: ':', label: 'commands (:pick, :park, :export, :import)', keys: { ':': startCommand } },
   { modes: ['normal'], hint: '?', label: 'all keys', essential: true, keys: { '?': () => enter('help') } },
@@ -98,7 +94,7 @@ export const COMMANDS = [
   // short in the status bar, in full in the ? help
   { modes: ['command'], hint: ':pick [filter]', label: 'from Todoist', help: [':pick [filter]', 'add tasks from Todoist (a); a filter like @arbeit'] },
   { modes: ['command'], hint: ':park [when]', label: 'to Todoist', help: [':park [when]', 'move the task to Todoist ("tomorrow", "fri")'] },
-  { modes: ['command'], hint: ':view g/i', label: 'layout', help: [':view g / i / classic', 'try a one-list layout (or back)'] },
+  { modes: ['command'], hint: ':check [min]', label: 'check interval', help: [':check [minutes]', 'how long a wait goes without a look (10)'] },
   { modes: ['command'], hint: ':export', label: 'download', help: [':export', 'download all data as a file'] },
   { modes: ['command'], hint: ':import', label: 'replace from file', help: [':import', 'replace all data from a file'] },
   { modes: ['command'], hint: 'enter', label: 'run' },

@@ -60,7 +60,7 @@ test('queries: timed tasks are sorted by time', () => {
   eq(timedTasks([task('b 14:00'), task('a 9:00'), task('none')]).map(t => t.title), ['a 9:00', 'b 14:00']);
 });
 
-test('queries: attention groups by urgency, each task once', () => {
+test('queries: attention: what has its time now, and the waits due for a look', () => {
   const d = {
     loops: [{ id: 'L', title: 'empty loop' }],
     tasks: [
@@ -77,9 +77,8 @@ test('queries: attention groups by urgency, each task once', () => {
   const g = attention(d, 600, 60_000);   // a minute in: no wait is due for a check yet
   const titles = list => list.map(t => t.title);
   eq(titles(g.now), ['overdue 9:00 @i']);
-  eq(titles(g.soon), ['soon 10:20', 'check back 10:25 @w']);
-  eq(titles(g.important), ['important @i']);
-  eq(titles(g.later), ['later 14:00', 'waiting long @w', 'waiting short @w']);
+  eq(titles(g.check), [], 'a minute in, no wait is due yet');
+  eq(titles(attention(d, 600, 60 * 60_000).check), ['waiting long @w', 'waiting short @w']);
 });
 
 test('queries: due reminders', () => {
@@ -162,7 +161,7 @@ test('checks: a wait without a time is due CHECK_EVERY minutes after it was last
   ok(!checkDue({ ...t, checkedAt: 10 * min }, (10 + CHECK_EVERY - 1) * min), '. resets it');
   ok(!checkDue(task('agent 15:00 @w', { waitingSince: 0 }), 60 * min), 'a check-back time decides instead');
   const g = attention({ loops: [], tasks: [t, task('agent 2 @w', { waitingSince: 0, checkedAt: 35 * min - 30_000 })] }, 600, 35 * min);
-  eq([g.check.map(x => x.title), g.later.map(x => x.title)], [['agent @w'], ['agent 2 @w']]);
+  eq(g.check.map(x => x.title), ['agent @w']);
 });
 
 test('import: rejects files that are not exports', () => {
@@ -239,7 +238,7 @@ test('queries: not-now tasks are kept but never work', () => {
   eq(notNowLast(d.tasks).map(t => t.title), ['real', 'idea @n', 'meet 9:00 @i @n']);
   eq(timedTasks(d.tasks), [], 'no appointment');
   const g = attention(d, 600);
-  eq([g.now, g.important], [[], []], 'not in Today');
+  eq([g.now, g.check], [[], []], 'not in Now');
   d.tasks[1].done = true;
   eq(loopStatus(d, d.loops[0]), 'stale', 'only not-now left: still needs a next action');
 });

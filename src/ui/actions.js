@@ -3,12 +3,12 @@
 import { state, mutate, undo as undoChange } from '../model/store.js';
 import { toggleToken, stripToken, stripTime, isWaiting, isNotNow, timeOf } from '../model/markers.js';
 import { INBOX_ID, CHECK_EVERY, openTasks } from '../model/queries.js';
-import { ui, enter, narrow, PANES, db, virtuals, loopsList, currentLoop, currentTasks, selTask, selItem, loopById } from './view.js';
+import { ui, enter, PANES, db, virtuals, loopsList, currentLoop, currentTasks, selTask, selItem, loopById } from './view.js';
 import { swap } from '../util.js';
-import { activeView, outlineMove, outlineJump, outlineSide } from './views.js';
+import { moveAcrossChecks, jumpToChecks, openCheck, afterCheck, checksByLoop } from './attention.js';
 
 export function move(delta) {
-  if (activeView() === 'i') return outlineMove(delta);
+  if (moveAcrossChecks(delta)) return;
   if (ui.focus === 'loops') {
     ui.loopIdx += delta;
     ui.taskIdx = 0;
@@ -18,7 +18,8 @@ export function move(delta) {
 }
 
 export function jump(toEnd) {
-  if (activeView() === 'i') return outlineJump(toEnd);
+  ui.checkOn = null;
+  if (!toEnd && ui.focus === 'loops' && jumpToChecks()) return;
   if (ui.focus === 'loops') {
     ui.loopIdx = toEnd ? loopsList().length - 1 : 0;
     ui.taskIdx = 0;
@@ -28,7 +29,7 @@ export function jump(toEnd) {
 }
 
 export function focusPane(delta) {
-  if (activeView() === 'i') return outlineSide(delta);
+  if (delta > 0 && openCheck()) return;
   const i = PANES.indexOf(ui.focus) + delta;
   if (i >= 0 && i < PANES.length) ui.focus = PANES[i];
 }
@@ -36,6 +37,7 @@ export function focusPane(delta) {
 // J/K: move the selected item down/up; the virtual views stay pinned on top
 export function shift(delta) {
   if (ui.focus === 'loops') {
+    if (ui.checkOn !== null) return;   // reorder on the loop's own row
     const i = ui.loopIdx - virtuals().length, j = i + delta;
     if (i < 0 || j < 0 || j >= db().loops.length) return;
     mutate(() => swap(db().loops, i, j));
@@ -124,7 +126,9 @@ export function markChecked() {
   const waits = (one ? [selTask()] : currentTasks()).filter(t => t && isWaiting(t));
   if (!waits.length) { ui.flash = { text: 'nothing waiting here' }; return; }
   const now = Date.now();
+  const before = checksByLoop().map(c => c.loop.id);
   mutate(() => waits.forEach(t => { t.checkedAt = now; }));
+  if (ui.checkOn !== null) afterCheck(before);
   ui.flash = { text: `checked${waits.length > 1 ? ` ${waits.length}` : ''} · again in ${CHECK_EVERY}m` };
 }
 
@@ -176,13 +180,7 @@ export function paste() {
 
 export const undo = undoChange;
 
-// s: the right column as an overlay, on narrow windows only
-export function toggleSide() {
-  ui.sideOpen = narrow.matches && !ui.sideOpen;
-}
-
 export function clearMarks() {
   ui.cutId = null;
   ui.search = null;
-  ui.sideOpen = false;
 }

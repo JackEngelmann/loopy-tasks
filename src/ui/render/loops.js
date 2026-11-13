@@ -1,23 +1,23 @@
-// Left pane: All and Inbox, then the loops (or the templates in template mode).
+// Left pane: Now, today's times and the Check rows on top (top.js), then All, the Inbox and
+// your loops, most important first (or the templates in template mode).
 
 import { openTasks, activeTasks, nextOf, loopStatus } from '../../model/queries.js';
 import { isWaiting, isImportant, displayTitle, timeOf, fmtTime } from '../../model/markers.js';
-import { ui, db, virtuals, tasksOf, singleTask, loopsList, VIRTUAL } from '../view.js';
-import { activeView, firstDoable, firstTaskOf } from '../views.js';
-import { topBlock, checkBlock, renderOutline } from './onelist.js';
+import { ui, db, virtuals, tasksOf, singleTask, VIRTUAL } from '../view.js';
+import { firstDoable, firstTaskOf } from '../attention.js';
+import { topBlock } from './top.js';
 import { highlight } from '../../features/search.js';
 import { editInput } from '../inline-edit.js';
 import { noteLine } from './rows.js';
 import { esc } from '../../util.js';
 
 export function renderLoops() {
-  if (activeView() === 'i') return renderOutline();
   const d = db();
-  // view g: the first loop you can do something in is green
-  const first = activeView() === 'g' ? firstDoable() : null;
+  // the first loop you can do something in is green
+  const first = ui.templates ? null : firstDoable();
   const ed = ui.mode === 'insert' ? ui.editing : null;
   const adding = ed && (ed.kind === 'new-loop' || ed.kind === 'new-single');
-  const sel = i => i === ui.loopIdx && !adding;
+  const sel = i => i === ui.loopIdx && !adding && ui.checkOn === null;   // else the cursor is on a Check row
 
   const rows = virtuals().map((l, i) => {
     const ts = activeTasks(tasksOf(l));   // not-now tasks don't count
@@ -67,7 +67,7 @@ export function renderLoops() {
     </li>`);
   });
   if (adding) rows.splice(virtuals().length + ed.at, 0, `<li class="row sel">${editInput('')}</li>`);
-  if (activeView() === 'g') rows.unshift(topBlock(), checkBlock(l => loopsList().indexOf(l)), '<li class="divider">Loops</li>');
+  rows.unshift(topBlock());
   if (!rows.length) rows.push(`<li class="empty">No templates yet. Press o to create one.</li>`);
   document.getElementById('loops').innerHTML = rows.join('');
   document.getElementById('loopsTitle').textContent = ui.templates ? 'Templates' : 'Loops';

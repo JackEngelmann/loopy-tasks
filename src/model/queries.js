@@ -1,7 +1,7 @@
 // Questions about a data set `d` ({ loops, tasks }: your loops, or the templates).
 // Pure: callers pass the data in.
 
-import { isWaiting, isImportant, isNotNow, timeOf } from './markers.js';
+import { isWaiting, isNotNow, timeOf } from './markers.js';
 
 // the Inbox is a fixed loop id: things captured but not sorted yet. It isn't a loop of
 // your own (no next action, never stale); each of its tasks stands on its own.
@@ -33,7 +33,9 @@ export function loopStatus(d, l) {
 
 // not-now tasks have no appointment: no Today, no reminder
 // a wait without a check-back time wants a look every CHECK_EVERY minutes; . resets it
-export const CHECK_EVERY = 2;   // short while trying the views out; 10 is the aim
+// (:check changes it, see features/check-every.js)
+export let CHECK_EVERY = 10;
+export const setCheckEvery = minutes => { CHECK_EVERY = minutes; };
 export const checkDue = (t, nowMs = Date.now()) => !t.done && isWaiting(t) && !isNotNow(t) && timeOf(t) === null
   && nowMs - (t.checkedAt ?? t.waitingSince ?? nowMs) >= CHECK_EVERY * 60_000;
 
@@ -41,34 +43,17 @@ export const timedTasks = tasks => tasks.filter(t => !t.done && !isNotNow(t) && 
   .sort((a, b) => timeOf(a) - timeOf(b));
 
 // ── Attention ──
-// What needs you, most urgent first, for the Today panel. Each open task shows once,
-// in its most urgent group:
-//   now        its time has come (overdue tasks and check-backs of waiting ones)
-//   soon       its time is within SOON minutes
-//   check      waiting without a check-back time, not looked at for CHECK_EVERY minutes
-//   important  marked @i
-//   later      timed later today, or waiting and checked recently (longest first)
+// What needs you, for the top of the loops pane:
+//   now    its time has come (overdue tasks and check-backs of waiting ones)
+//   check  waiting without a check-back time, not looked at for CHECK_EVERY minutes
 // Times have no date: everything is today.
-
-export const SOON = 30;
 
 export function attention(d, now, nowMs = Date.now()) {
   const open = d.tasks.filter(t => !t.done && !isNotNow(t));
-  const timed = timedTasks(open);
-  const groups = {
-    now: timed.filter(t => timeOf(t) <= now),
-    soon: timed.filter(t => timeOf(t) > now && timeOf(t) <= now + SOON),
+  return {
+    now: timedTasks(open).filter(t => timeOf(t) <= now),
+    check: open.filter(t => checkDue(t, nowMs)),
   };
-  groups.check = open.filter(t => checkDue(t, nowMs));
-  const taken = new Set([...groups.now, ...groups.soon, ...groups.check]);
-  groups.important = open.filter(t => isImportant(t) && !taken.has(t));
-  groups.important.forEach(t => taken.add(t));
-  groups.later = [
-    ...timed.filter(t => !taken.has(t)),
-    ...open.filter(t => isWaiting(t) && timeOf(t) === null && !taken.has(t))
-      .sort((a, b) => (a.waitingSince || 0) - (b.waitingSince || 0)),
-  ];
-  return groups;
 }
 
 // ── Reminders ──

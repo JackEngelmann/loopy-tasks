@@ -1,8 +1,7 @@
-// Drag the edges between the panes to resize them; double-click resets an edge.
+// Drag the edge between the panes to resize them; double-click resets it.
 //   loops | tasks   sets the loops pane width (--loops-w)
-//   tasks | side    sets the right column width (--side-w), wide windows only
-// The tasks pane takes the rest. Widths are remembered per layout (wide: three columns,
-// narrow: two), as { "loops-wide": 320, "side-wide": 300, "loops-narrow": 260 }.
+// The tasks pane takes the rest. Widths are remembered per window size (wide, narrow),
+// as { "loops-wide": 420, "loops-narrow": 300 }.
 
 import { narrow } from './view.js';
 
@@ -22,15 +21,7 @@ const EDGES = [
     cssVar: '--loops-w',
     current: () => width('#loopsPane'),
     fromPointer: x => x - main.getBoundingClientRect().left - GAP,
-    others: () => narrow.matches ? 0 : width('.side') + GAP,
-  },
-  {
-    name: 'side',
-    handle: 'sideSplitter',
-    cssVar: '--side-w',
-    current: () => width('.side'),
-    fromPointer: x => main.getBoundingClientRect().right - GAP - x,
-    others: () => width('#loopsPane') + GAP,
+    others: () => 0,
   },
 ];
 

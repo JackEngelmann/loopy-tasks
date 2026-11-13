@@ -9,7 +9,8 @@ import { renderModal } from '../../editor/modal.js';
 import { focusInlineEdit } from '../inline-edit.js';
 import { renderLoops } from './loops.js';
 import { renderTasks } from './tasks.js';
-import { renderToday } from './today.js';
+import { renderNowBadge } from './top.js';
+import { syncCheck } from '../attention.js';
 import { renderChrome } from './chrome.js';
 import { renderHelp } from './help.js';
 import { renderCmdBox } from '../../features/cmdline.js';
@@ -17,13 +18,14 @@ import { renderCaptureBox } from '../../features/capture.js';
 
 export function render() {
   clamp();
+  syncCheck();
   dropStaleSearch();
   renderPicker();
   renderTodoist();
   renderModal();
   renderLoops();
   renderTasks();
-  renderToday();
+  renderNowBadge();
   renderChrome();
   renderSearchBox();
   renderCmdBox();

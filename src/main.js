@@ -1,16 +1,16 @@
 // Entry point: load the data, wire up keys and mouse, start the timers.
 
 import { state, load } from './model/store.js';
-import { ui, narrow, isEditing } from './ui/view.js';
+import { ui, isEditing } from './ui/view.js';
 import { commandFor } from './ui/commands.js';
-import { toggleSide } from './ui/actions.js';
 import { render } from './ui/render/index.js';
 import { checkReminders } from './features/reminders.js';
 import { seed } from './features/seed.js';
 import './features/io.js';
 import { initSplitter } from './ui/splitter.js';
 import { isShortcut } from './util.js';
-import { loadView, outlineItems, outlineSelect } from './ui/views.js';
+import { onCheck } from './ui/attention.js';
+import { loadCheckEvery } from './features/check-every.js';
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
 // normal and picker mode keys come from the command table; the typing modes
@@ -32,13 +32,13 @@ document.addEventListener('keydown', e => {
 
 document.getElementById('loops').addEventListener('click', e => {
   if (isEditing()) return;
-  // view i: the outline's rows, loops and tasks alike
-  const item = e.target.closest('.row[data-oi]');
-  if (item) { outlineSelect(outlineItems()[+item.dataset.oi]); render(); return; }
+  const check = e.target.closest('.check-row');
+  if (check) { onCheck(check.dataset.check); render(); return; }
   const row = e.target.closest('.row[data-i]');
   if (!row) return;
   if (+row.dataset.i !== ui.loopIdx) ui.taskIdx = 0;
   ui.loopIdx = +row.dataset.i;
+  ui.checkOn = null;
   ui.focus = 'loops';
   render();
 });
@@ -51,14 +51,11 @@ document.getElementById('tasks').addEventListener('click', e => {
   render();
 });
 
-document.getElementById('summary').addEventListener('click', () => { toggleSide(); render(); });
-// widening the window brings the column back in place, so drop the overlay state
-narrow.addEventListener('change', () => { ui.sideOpen = false; render(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 load();
-loadView();
+loadCheckEvery();
 if (!state.loops.length && !state.tasks.length) seed();
 initSplitter();
 render();

@@ -5,7 +5,7 @@ import { ui, enter, leave } from '../ui/view.js';
 import { render } from '../ui/render/index.js';
 import { exportData, chooseImportFile } from './io.js';
 import { openTodoist, park } from './todoist.js';
-import { setView } from '../ui/views.js';
+import { checkCommand } from './check-every.js';
 
 const input = document.getElementById('cmdInput');
 
@@ -14,7 +14,7 @@ const COMMANDS = {
   export: exportData,
   import: chooseImportFile,
   pick: openTodoist,   // :pick [Todoist filter]
-  view: setView,       // :view g | i | classic
+  check: checkCommand, // :check [minutes]
   park,
 };
 

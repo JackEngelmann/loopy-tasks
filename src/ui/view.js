@@ -27,16 +27,15 @@ export const ui = {
   otherCursor: null,  // cursor of the mode you're not in, restored on T
   picker: null,
   todoist: null,
-  sideOpen: false,    // right column shown as an overlay on narrow windows (s)
   help: false,        // the ? help shown over the editor (in normal mode it's ui.mode 'help')
-  view: 'classic',    // :view classic | g | i (ui/views.js)
-  unfold: {},         // view i: loops folded or unfolded by hand, by id
+  checkOn: null,      // the loop whose Check row the cursor is on (ui/attention.js); loopIdx follows it
 };
 
 export const isEditing = () => ui.mode === 'insert' || ui.mode === 'modal';
 
 export function enter(mode, payload = {}) {
   ui.mode = mode;
+  if (mode === 'insert') ui.checkOn = null;   // new and renamed items show in the loop rows
   Object.assign(ui, payload);
 }
 
@@ -80,7 +79,7 @@ export const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] :
 // the loop or task the cursor is on (a one-step loop is its task)
 export const selItem = () => ui.focus === 'loops' ? singleTask(currentLoop()) || currentLoop() : selTask();
 
-// narrow windows (e.g. half a screen) fold the right column into a summary line
+// narrow windows (e.g. half a screen) remember their own pane width (splitter.js)
 export const narrow = window.matchMedia('(max-width: 1100px)');
 
 export function clamp() {
