@@ -13,7 +13,7 @@ const task = (title, extra = {}) => ({ id: title, title, loopId: null, done: fal
 
 // ── Markers ───────────────────────────────────────────────────────────────────
 
-test('markers: toggling @w / @i', () => {
+test('markers: toggling @w / @p', () => {
   eq(toggleToken('Call Anna', '@w'), 'Call Anna @w');
   eq(toggleToken('Call @w Anna', '@w'), 'Call Anna');
   ok(isWaiting(task('x @w')));
@@ -23,7 +23,7 @@ test('markers: toggling @w / @i', () => {
 test('markers: times and display title', () => {
   eq(timeOf(task('Standup 9:30')), 570);
   eq(timeOf(task('Review 24:00')), null);
-  eq(displayTitle(task('Standup 09:30 @i @w')), 'Standup');
+  eq(displayTitle(task('Standup 09:30 @p @w')), 'Standup');
 });
 
 test('markers: relative times', () => {
@@ -145,9 +145,23 @@ test('migration 2 → 3: standalone tasks become one-step loops, timed ones stay
   eq(d.tasks.map(t => t.loopId === null), [false, true, false, true]);
 });
 
+test('migration 3 → 4: important is gone; in progress starts empty', () => {
+  const d = migrate({ version: 3, loops: [], templates: { loops: [{ id: 'T', title: 'T' }], tasks: [task('tpl @i', { loopId: 'T' })] }, tasks: [task('Pay rent @i @w')] });
+  eq([d.tasks[0].title, d.templates.tasks[0].title], ['Pay rent @w', 'tpl']);
+});
+
+test('in progress: stamped when it starts, gone when the task is done', () => {
+  const d = { tasks: [task('a @p'), task('b @p', { done: true }), task('c')] };
+  stampWaiting(d, 500);
+  eq(d.tasks.map(t => [t.title, t.progressSince]), [['a @p', 500], ['b', undefined], ['c', undefined]]);
+  d.tasks[0].done = true;
+  stampWaiting(d, 600);
+  eq([d.tasks[0].title, d.tasks[0].progressSince], ['a', undefined]);
+});
+
 test('settle: loose tasks need a time; one-step loops live and die with their task', () => {
   const d = { loops: [{ id: 'S', title: 'old name', single: true }, { id: 'E', title: 'gone', single: true }, { id: 'T', title: 'two', single: true }],
-    tasks: [task('untimed'), task('meeting 14:00'), task('renamed @i', { loopId: 'S' }), task('done', { loopId: 'E', done: true }),
+    tasks: [task('untimed'), task('meeting 14:00'), task('renamed @p', { loopId: 'S' }), task('done', { loopId: 'E', done: true }),
       task('a', { loopId: 'T' }), task('b', { loopId: 'T' }), task('lost', { loopId: 'nowhere' })] };
   settle(d);
   eq(d.tasks.filter(t => t.loopId === INBOX_ID).map(t => t.title), ['untimed', 'lost']);
@@ -262,11 +276,11 @@ test('util: ages', () => {
 
 const tt = (content, due, extra = {}) => ({ id: content, content, priority: 1, ...(due && { due: { date: due } }), ...extra });
 
-test('todoist: a picked task keeps today\'s time, p1 and the description', () => {
+test('todoist: a picked task keeps today\'s time and the description', () => {
   const today = '2026-11-13';
   eq(fromTodoist(tt('Call Anna', '2026-11-13T14:30:00'), today).title, 'Call Anna 14:30');
   eq(fromTodoist(tt('Call Anna', '2026-11-11T14:30:00'), today).title, 'Call Anna', 'an overdue time is no appointment today');
-  eq(fromTodoist(tt('Pay rent', '2026-11-13', { priority: 4 }), today).title, 'Pay rent @i');
+  eq(fromTodoist(tt('Pay rent', '2026-11-13', { priority: 4 }), today).title, 'Pay rent', 'p1 means nothing here');
   const t = fromTodoist(tt('Plan', '2026-11-13', { description: ' details ' }), today);
   eq([t.todoistId, t.note], ['Plan', 'details']);
   ok(!('note' in fromTodoist(tt('Plan', null), today)));

@@ -18,7 +18,7 @@ import { startSearch, searchNext } from '../features/search.js';
 import { toggleTemplates, openPicker, pickerMove, pickerChoose } from '../features/templates.js';
 import { startCommand } from '../features/cmdline.js';
 import { startCapture } from '../features/capture.js';
-import { nextAttention } from './attention.js';
+import { nextAttention, toggleFocus } from './attention.js';
 import { openTodoist, todoistMove, todoistMark, todoistChoose } from '../features/todoist.js';
 import { openModal } from '../editor/modal.js';
 
@@ -54,7 +54,8 @@ export const COMMANDS = [
   { modes: ['normal'], hint: '.', label: 'checked', show: notTemplates, essential: true, keys: { '.': act.markChecked } },
   { modes: ['normal'], hint: 'S', label: 'one-step loop', show: notTemplates, keys: { S: act.addSingle } },
   { modes: ['normal'], hint: 'w', label: 'waiting', show: inTasks, essential: true, keys: { w: () => act.toggleMarker('@w') } },
-  { modes: ['normal'], hint: 'i', label: 'important', keys: { i: () => act.toggleMarker('@i') } },
+  { modes: ['normal'], hint: 'i', label: 'in progress', show: notTemplates, essential: true, keys: { i: () => act.toggleMarker('@p') } },
+  { modes: ['normal'], hint: 'f', label: 'focus', show: notTemplates, keys: { f: toggleFocus } },
   { modes: ['normal'], hint: 'z', label: 'not now', show: inTasks, keys: { z: () => act.toggleMarker('@n') } },
   { modes: ['normal'], hint: 'r', label: 'rename', keys: { r: act.rename } },
   { modes: ['normal'], hint: 'R', label: 'rename in the editor', keys: { R: () => openModal('title') } },
@@ -66,7 +67,7 @@ export const COMMANDS = [
   { modes: ['normal'], hint: '/', label: 'search', keys: { '/': startSearch } },
   { modes: ['normal'], hint: 'n/N', label: 'next/prev match', keys: { n: () => searchNext(1), N: () => searchNext(-1) } },
   { modes: ['normal'], hint: 'u', label: 'undo', keys: { u: act.undo } },
-  { modes: ['normal'], help: ['esc', 'clear cut and search'], keys: { Escape: act.clearMarks } },
+  { modes: ['normal'], help: ['esc', 'clear cut and search, end focus'], keys: { Escape: act.clearMarks } },
   { modes: ['normal'], hint: ':', label: 'commands (:pick, :park, :export, :import)', keys: { ':': startCommand } },
   { modes: ['normal'], hint: '?', label: 'all keys', essential: true, keys: { '?': () => enter('help') } },
 
@@ -87,7 +88,7 @@ export const COMMANDS = [
   { modes: ['insert'], hint: 'enter', label: 'save' },
   { modes: ['insert'], hint: 'esc', label: 'cancel' },
   { modes: ['insert'], hint: '@w', label: 'waiting' },
-  { modes: ['insert'], hint: '@i', label: 'important' },
+  { modes: ['insert'], hint: '@p', label: 'in progress' },
   { modes: ['insert'], hint: '@n', label: 'not now' },
   { modes: ['insert'], hint: '14:30 / +20m', label: 'timed' },
   { modes: ['help'], hint: 'esc', label: 'close', keys: { Escape: leave, '?': leave, q: leave } },

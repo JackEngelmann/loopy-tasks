@@ -125,7 +125,13 @@ footer { position: relative; z-index: 10; }
 }
 /* overlays with a title and a status keep them apart */
 #noteBox .pane-head, #help .pane-head, #todoist .pane-head { justify-content: space-between; }
-.star { color: var(--imp); }
+/* in progress: the magenta that important had */
+.row.doing { background: color-mix(in srgb, var(--imp) 12%, transparent); box-shadow: inset 3px 0 0 var(--imp); }
+.row.doing .check, .row.doing .when { color: var(--imp); }
+.pane.focused .row.doing.sel { box-shadow: inset 3px 0 0 var(--sel); background: color-mix(in srgb, var(--imp) 22%, transparent); }
+.tier.doing { color: var(--imp); }
+/* focus (f): the rest goes quiet */
+.row.quiet { opacity: .4; }
 
 ul { list-style: none; overflow-y: auto; flex: 1; padding: 4px 0; }
 

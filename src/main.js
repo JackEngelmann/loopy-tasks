@@ -9,7 +9,7 @@ import { seed } from './features/seed.js';
 import './features/io.js';
 import { initSplitter } from './ui/splitter.js';
 import { isShortcut } from './util.js';
-import { onCheck } from './ui/attention.js';
+import { onTop, topStops } from './ui/attention.js';
 import { loadCheckEvery } from './features/check-every.js';
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
@@ -32,13 +32,20 @@ document.addEventListener('keydown', e => {
 
 document.getElementById('loops').addEventListener('click', e => {
   if (isEditing()) return;
-  const check = e.target.closest('.check-row');
-  if (check) { onCheck(check.dataset.check); render(); return; }
+  // the rows on top: Doing (a task) and Check (a loop)
+  const top = e.target.closest('[data-doing], [data-check]');
+  if (top) {
+    const id = top.dataset.doing ?? top.dataset.check;
+    const stop = topStops().find(s => s.id === id && s.kind === (top.dataset.doing ? 'doing' : 'check'));
+    if (stop) onTop(stop);
+    render();
+    return;
+  }
   const row = e.target.closest('.row[data-i]');
   if (!row) return;
   if (+row.dataset.i !== ui.loopIdx) ui.taskIdx = 0;
   ui.loopIdx = +row.dataset.i;
-  ui.checkOn = null;
+  ui.topOn = null;
   ui.focus = 'loops';
   render();
 });

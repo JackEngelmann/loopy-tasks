@@ -28,14 +28,15 @@ export const ui = {
   picker: null,
   todoist: null,
   help: false,        // the ? help shown over the editor (in normal mode it's ui.mode 'help')
-  checkOn: null,      // the loop whose Check row the cursor is on (ui/attention.js); loopIdx follows it
+  topOn: null,        // the Doing or Check row the cursor is on, { kind, id } (ui/attention.js); loopIdx follows it
+  focusMode: false,   // f: everything but what's in progress goes quiet
 };
 
 export const isEditing = () => ui.mode === 'insert' || ui.mode === 'modal';
 
 export function enter(mode, payload = {}) {
   ui.mode = mode;
-  if (mode === 'insert') ui.checkOn = null;   // new and renamed items show in the loop rows
+  if (mode === 'insert') ui.topOn = null;   // new and renamed items show in the loop rows
   Object.assign(ui, payload);
 }
 
@@ -78,9 +79,11 @@ export const tasksOf = loop => notNowLast(openTasks(db(), loop.id));
 export const singleTask = loop => loop.single ? openTasks(db(), loop.id)[0] || null : null;
 // middle pane; done tasks are hidden
 export const currentTasks = () => tasksOf(currentLoop());
-export const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] : singleTask(currentLoop());
-// the loop or task the cursor is on (a one-step loop is its task)
-export const selItem = () => ui.focus === 'loops' ? singleTask(currentLoop()) || currentLoop() : selTask();
+// the task on a Doing row the cursor is on
+export const topTask = () => ui.topOn && ui.topOn.kind === 'doing' ? state.tasks.find(t => t.id === ui.topOn.id) || null : null;
+export const selTask = () => ui.focus === 'tasks' ? currentTasks()[ui.taskIdx] : topTask() || singleTask(currentLoop());
+// the loop or task the cursor is on (a one-step loop is its task, a Doing row its task)
+export const selItem = () => ui.focus === 'loops' ? topTask() || singleTask(currentLoop()) || currentLoop() : selTask();
 
 // narrow windows (e.g. half a screen) remember their own pane width (splitter.js)
 export const narrow = window.matchMedia('(max-width: 1100px)');

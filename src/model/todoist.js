@@ -24,13 +24,12 @@ export function daysOver(tt, today = localDate()) {
   return Math.round((new Date(today) - new Date(date)) / 86_400_000);
 }
 
-// the Loopy task a Todoist task becomes: today's time as a marker, p1 as important,
+// the Loopy task a Todoist task becomes: today's time as a marker,
 // the description as the note. The id keeps it from being picked twice.
 export function fromTodoist(tt, today = localDate()) {
   const { date, time } = dueOf(tt);
   let title = tt.content.trim();
   if (date === today && time !== null) title += ` ${fmtTime(time)}`;
-  if (tt.priority === 4) title += ' @i';
   const task = { title, todoistId: tt.id };
   if (tt.description && tt.description.trim()) Object.assign(task, { note: tt.description.trim(), noteAt: Date.now() });
   return task;

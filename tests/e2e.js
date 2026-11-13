@@ -123,7 +123,7 @@ test('o adds a task below the selected one', async () => {
   typeInline('New thing');
   const web = loop('Website redesign').id;
   const titles = data().tasks.filter(t => t.loopId === web).map(t => t.title);
-  eq(titles.indexOf('New thing'), titles.indexOf('Sketch new landing page @i') + 1);
+  eq(titles.indexOf('New thing'), titles.indexOf('Sketch new landing page') + 1);
   ok(selected('tasks').includes('New thing'));
 });
 
@@ -160,12 +160,49 @@ test('w marks waiting with a timestamp and a note hint, w again clears it', asyn
   eq(task('Collect feedback').title, 'Collect feedback', 'w on a waiting task drops its check-back time too');
 });
 
-test('i marks important: a star on the task and on its loop', async () => {
+test('i puts tasks in progress: Doing rows on top, with their loop and how long', async () => {
   await fresh();
-  keys('j', 'l', 'i');   // Quarterly report
-  ok(task('Draft sent').title.endsWith('@i'));
-  ok($('#tasks .row.sel .star'));
-  ok(selected('loops').includes('★'));
+  keys('j', 'l', 'i');   // Quarterly report: Draft sent to finance @w
+  eq(task('Draft sent').title, 'Draft sent to finance for review @p', 'in progress ends the wait');
+  ok(task('Draft sent').progressSince > 0);
+  ok(group('doing').startsWith('▶[Quarterly report]Draft sent to finance for review'), group('doing'));
+  ok(group('doing').endsWith('now'), 'with how long');
+  ok($('#tasks .row.sel').classList.contains('doing'));
+  keys('h', 'k', 'l', 'i');   // and Sketch new landing page, in Website redesign
+  eq($$('#loops .row[data-doing]').length, 2, 'several at once');
+  keys('w');
+  eq(task('Sketch new').title, 'Sketch new landing page @w', 'w hands it off: no longer in progress');
+  eq($$('#loops .row[data-doing]').length, 1);
+});
+
+test('Doing rows: the cursor stands on them; space finishes, l opens the loop on the task', async () => {
+  await fresh();
+  keys('j', 'l', 'i', 'h', 'g');
+  ok($('#loops .row[data-doing].sel'), 'g: the first top row');
+  eq(text('#tasksTitle'), 'Quarterly report');
+  keys('l');
+  ok(focused('tasks'));
+  ok(selected('tasks').includes('Draft sent'));
+  keys('h', 'g', ' ');
+  ok(task('Draft sent').done);
+  eq(task('Draft sent').title, 'Draft sent to finance for review', 'done: no longer in progress');
+  eq(group('doing'), '');
+});
+
+test('f: focus quiets everything but what is in progress, and ends by itself', async () => {
+  await fresh();
+  keys('f');
+  ok(text('#flash').includes('nothing in progress'));
+  keys('j', 'l', 'i', 'h', 'f');
+  ok(doc.body.classList.contains('focus-mode'));
+  eq(text('#mode'), 'FOCUS');
+  ok(focused('tasks') && selected('tasks').includes('Draft sent'), 'opens the task in progress');
+  const quiet = name => $$('#loops .row[data-i]').find(r => r.textContent.includes(name)).classList.contains('quiet');
+  ok(quiet('Website redesign') && !quiet('Quarterly report'));
+  keys(' ');
+  ok(!doc.body.classList.contains('focus-mode'), 'nothing in progress anymore');
+  keys('u', 'f', 'Escape');
+  ok(!doc.body.classList.contains('focus-mode'), 'esc ends it too');
 });
 
 test('space marks done and hides the task; u brings it back', async () => {
@@ -252,12 +289,12 @@ test('o in the loops pane adds a loop; d deletes it but keeps its tasks', async 
 test('S adds a one-step loop: one line, keys act on its task, done takes it away', async () => {
   await fresh();
   keys('S');   // below Website redesign
-  typeInline('Answer Anna @i');
+  typeInline('Answer Anna @p');
   const l = data().loops[1];
   eq([l.title, l.single], ['Answer Anna', true]);
   eq(task('Answer Anna').loopId, l.id);
   ok($('#loops .row.sel').classList.contains('single'));
-  ok(selected('loops').includes('★'), 'its markers show on the row');
+  ok(selected('loops').includes('▶'), 'its markers show on the row');
   keys('w');
   ok(task('Answer Anna').title.includes('@w'), 'w on the row marks its task');
   keys('w', 'r');
@@ -472,7 +509,7 @@ test('z: not now moves a task to the end of its loop and out of the work', async
   const count = () => text('#loops .row.sel .count');
   eq(count(), '5');
   keys('z');
-  eq(task('Sketch new').title, 'Sketch new landing page @i @n');
+  eq(task('Sketch new').title, 'Sketch new landing page @n');
   ok(text('#tasks .tier.not-now').startsWith('Not now'));
   ok(text('#tasks .row:last-child').includes('Sketch new landing page'), 'last, under the heading');
   ok($('#tasks .row:last-child').classList.contains('not-now'));
@@ -490,7 +527,7 @@ test('z: not now moves a task to the end of its loop and out of the work', async
   keys('K');
   ok(text('#tasks .row:last-child').includes('Try a serif'), 'K stays within Not now');
   keys('z');
-  eq(task('Sketch new').title, 'Sketch new landing page @i');
+  eq(task('Sketch new').title, 'Sketch new landing page');
 });
 
 test('z ends a wait (and the other way round); a loop with only not-now tasks is yellow', async () => {
@@ -610,7 +647,7 @@ test('a lists Todoist tasks; enter adds the selected one to the loop', async () 
   keys('Enter');
   ok($('#todoist').hidden);
   const t = task('Call Anna');
-  eq([t.title, t.loopId, t.todoistId, t.note], ['Call Anna 14:30 @i', loop('Website redesign').id, '2', 'about the trip']);
+  eq([t.title, t.loopId, t.todoistId, t.note], ['Call Anna 14:30', loop('Website redesign').id, '2', 'about the trip']);
   ok(sent.every(r => !r.method || r.method === 'GET'), 'Todoist is left as it is');
 });
 
@@ -645,7 +682,7 @@ test(':park sends the task to Todoist and removes it here', async () => {
   command('park tomorrow');
   await settle();
   const req = sent.at(-1);
-  eq([req.method, req.body], ['POST', { content: 'Sketch new landing page', priority: 4, due_string: 'tomorrow' }]);
+  eq([req.method, req.body], ['POST', { content: 'Sketch new landing page', due_string: 'tomorrow' }]);
   ok(!task('Sketch new landing page'));
   ok(text('#flash').includes('parked'));
 });
@@ -918,7 +955,7 @@ test('data saved before versioning still loads', async () => {
   ok(text('#loops').includes('Old loop'));
   keys('l', 'o');
   typeInline('New');
-  eq(data().version, 3);
+  eq(data().version, 4);
   ok(task('Old task').waitingSince > 0);
   eq(data().templates, { loops: [], tasks: [] });
 });

@@ -1,7 +1,7 @@
 // Questions about a data set `d` ({ loops, tasks }: your loops, or the templates).
 // Pure: callers pass the data in.
 
-import { isWaiting, isNotNow, timeOf } from './markers.js';
+import { isWaiting, isNotNow, isInProgress, timeOf } from './markers.js';
 
 // the Inbox is a fixed loop id: things captured but not sorted yet. It isn't a loop of
 // your own (no next action, never stale); each of its tasks stands on its own.
@@ -49,6 +49,9 @@ export function dueSince(t, nowMs = Date.now()) {
   const time = timeOf(t);
   return time !== null ? new Date(nowMs).setHours(0, time, 0, 0) : t.checkedAt ?? t.waitingSince ?? nowMs;
 }
+
+// what you're working on, longest first
+export const inProgress = d => d.tasks.filter(isInProgress).sort((a, b) => (a.progressSince || 0) - (b.progressSince || 0));
 
 export const timedTasks = tasks => tasks.filter(t => !t.done && !isNotNow(t) && timeOf(t) !== null)
   .sort((a, b) => timeOf(a) - timeOf(b));

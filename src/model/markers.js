@@ -1,13 +1,14 @@
-// Markers live in the task title text: "@w" waiting, "@i" important, "@n" not now, "14:30" timed,
+// Markers live in the task title text: "@w" waiting, "@p" in progress, "@n" not now, "14:30" timed,
 // and "+20m" (resolved to a clock time on save). Everything here is pure.
 
-// "@w" / "@i" / "@n" anywhere in the title mark a task as waiting / important / not now
+// "@w" / "@p" / "@n" anywhere in the title mark a task as waiting / in progress / not now
 const tokenRe = tok => new RegExp(`(^|\\s)${tok}(?=\\s|$)`, 'g');
 export const hasToken = (s, tok) => tokenRe(tok).test(s);
 export const stripToken = (s, tok) => s.replace(tokenRe(tok), '$1').replace(/\s+/g, ' ').trim();
 export const toggleToken = (s, tok) => hasToken(s, tok) ? stripToken(s, tok) : `${s} ${tok}`;
 export const isWaiting = t => hasToken(t.title, '@w');
-export const isImportant = t => hasToken(t.title, '@i');
+// in progress: what you're working on right now (usually one, sometimes a few)
+export const isInProgress = t => !t.done && hasToken(t.title, '@p');
 // not now: kept with its loop (an idea, something you decided to hold back), but not work yet
 export const isNotNow = t => hasToken(t.title, '@n');
 
@@ -33,4 +34,4 @@ export function resolveRelative(title, now = nowMinutes()) {
 }
 
 // the title as shown: markers and the time are displayed separately
-export const displayTitle = t => ['@w', '@i', '@n'].reduce(stripToken, t.title.replace(TIME_RE, '$1'));
+export const displayTitle = t => ['@w', '@p', '@n'].reduce(stripToken, t.title.replace(TIME_RE, '$1'));

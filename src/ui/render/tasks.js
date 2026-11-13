@@ -3,7 +3,7 @@
 import { ui, currentLoop, currentTasks } from '../view.js';
 import { editInput } from '../inline-edit.js';
 import { taskRow } from './rows.js';
-import { isNotNow } from '../../model/markers.js';
+import { isNotNow, isInProgress } from '../../model/markers.js';
 import { esc, age } from '../../util.js';
 
 export function renderTasks() {
@@ -17,6 +17,7 @@ export function renderTasks() {
     // highlight next actions (not in templates, and not in the side panels)
     marks: !ui.templates,
     notes: true,
+    cls: ui.focusMode && !isInProgress(t) ? 'quiet' : '',
   }));
   if (adding) rows.splice(ui.editing.at, 0, `<li class="row sel"><span class="check"></span>${editInput('')}</li>`);
   // the not-now tasks (last in the list) under a quiet heading

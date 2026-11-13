@@ -1,7 +1,7 @@
 // The data and every change to it. `state` is never reassigned (other modules hold it),
 // so undo and import swap its contents with replace().
 
-import { isWaiting, timeOf, displayTitle } from './markers.js';
+import { isWaiting, isInProgress, timeOf, displayTitle, stripToken } from './markers.js';
 import { INBOX_ID } from './queries.js';
 import { uid } from '../util.js';
 
@@ -11,7 +11,7 @@ export const STORAGE_KEY = 'loops-v1';
 // stored data (and exports) carry `version`; data without one is version 0.
 // MIGRATIONS[n] upgrades version n to n + 1. To change the data shape, append one.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 // templates have the same shape as the main data: loops with tasks
 export const emptyState = () => ({ version: SCHEMA_VERSION, loops: [], tasks: [], templates: { loops: [], tasks: [] } });
@@ -31,6 +31,10 @@ const MIGRATIONS = [
       t.loopId = loop.id;
     });
   },
+  // 3 → 4: important (@i) is gone; in progress (@p) means something else, so the marks just go
+  // (one-step loops are named after their task)
+  d => [d.tasks, d.templates ? d.templates.tasks : [], d.loops.filter(l => l.single)].flat()
+    .forEach(x => { x.title = stripToken(x.title, '@i'); }),
 ];
 
 export function migrate(d) {
@@ -73,11 +77,15 @@ export function undo() {
   persist();
 }
 
-// remember when a task started waiting, however @w got there (w, typing, import, template)
+// remember when a task started waiting or went in progress, however the marker got there
+// (a key, typing, import, template); a finished task is no longer in progress
 export function stampWaiting(d, now = Date.now()) {
   d.tasks.forEach(t => {
     if (isWaiting(t) && !t.done) t.waitingSince = t.waitingSince || now;
     else { delete t.waitingSince; delete t.checkedAt; }
+    if (t.done) t.title = stripToken(t.title, '@p');
+    if (isInProgress(t)) t.progressSince = t.progressSince || now;
+    else delete t.progressSince;
   });
 }
 

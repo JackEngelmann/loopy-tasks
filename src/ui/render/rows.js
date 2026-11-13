@@ -1,7 +1,7 @@
 // Row markup shared by the panes.
 
 import { isNext, checkDue } from '../../model/queries.js';
-import { isWaiting, isImportant, isNotNow, timeOf, fmtTime, nowMinutes, displayTitle } from '../../model/markers.js';
+import { isWaiting, isInProgress, isNotNow, timeOf, fmtTime, nowMinutes, displayTitle } from '../../model/markers.js';
 import { ui, db, isTemplate, loopById } from '../view.js';
 import { highlight } from '../../features/search.js';
 import { editInput } from '../inline-edit.js';
@@ -32,6 +32,7 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
     next && 'next',
     marks && !next && !t.done && 'backlog',
     isNotNow(t) && 'not-now',
+    isInProgress(t) && 'doing',
     t.done && 'done',
     due && 'due',
     check && 'check-due',
@@ -46,16 +47,15 @@ export function taskRow(t, i, { selected, showTag, marks, notes, label, below, c
     ? editInput(t.title)
     : `<span class="name">${hl(displayTitle(t))}</span>`;
   // only meaningful markers; plain tasks leave the column empty
-  const mark = t.done ? '✓' : isWaiting(t) ? '◷' : due ? '!' : next ? '▸' : '';
+  const mark = t.done ? '✓' : isInProgress(t) ? '▶' : isWaiting(t) ? '◷' : due ? '!' : next ? '▸' : '';
   const timeEl = time !== null ? `<span class="time">${hl(fmtTime(time))}</span>` : '';
-  const star = !t.done && isImportant(t) ? `<span class="star">★</span>` : '';
   // how late it is, else how long it's been waiting
-  const when = label ?? (due ? `${duration(now - time)} late` : check ? 'check' : null);
+  const when = label ?? (due ? `${duration(now - time)} late` : check ? 'check' : isInProgress(t) ? age(t.progressSince) : null);
   // (a waiting task with a time shows that time instead)
   const tail = below !== undefined ? (below ? `<div class="row-below">${below}</div>` : '')
     : when ? `<span class="when">${when}</span>`
     : !t.done && t.waitingSince && time === null ? `<span class="wait-age">${age(t.waitingSince)}</span>` : '';
   // in full while the task is selected
   const note = notes ? noteLine(t, 'task-note', selected) : t.note ? '<span class="note-mark">✎</span>' : '';
-  return `<li class="${cls}" data-i="${i}"><span class="check">${mark}</span>${star}${timeEl}${tag}${name}${tail}${note}</li>`;
+  return `<li class="${cls}" data-i="${i}"><span class="check">${mark}</span>${timeEl}${tag}${name}${tail}${note}</li>`;
 }

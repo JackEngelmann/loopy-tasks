@@ -4,7 +4,7 @@
 // Requests go through serve.py, which adds the token from .env; the browser never sees it.
 
 import { state, mutate } from '../model/store.js';
-import { displayTitle, isImportant, fmtTime } from '../model/markers.js';
+import { displayTitle, fmtTime } from '../model/markers.js';
 import { fromTodoist, pickerOrder, dueOf, daysOver, localDate } from '../model/todoist.js';
 import { ui, enter, leave, isEditing, currentLoop, selTask } from '../ui/view.js';
 import { render } from '../ui/render/index.js';
@@ -120,8 +120,7 @@ export function renderTodoist() {
     const when = over ? `<span class="when">${over}d over</span>`
       : date && date > localDate() ? `<span class="later">${laterDay(date)}</span>`
       : time !== null ? `<span class="time">${fmtTime(time)}</span>` : '';
-    const star = tt.priority === 4 ? '<span class="star">★</span>' : '';
-    return `<li class="${cls}"><span class="check">${check}</span>${star}${when}<span class="name">${esc(tt.content)}</span><span class="tag">${esc(tt.projectName)}</span></li>`;
+    return `<li class="${cls}"><span class="check">${check}</span>${when}<span class="name">${esc(tt.content)}</span><span class="tag">${esc(tt.projectName)}</span></li>`;
   }).join('');
 }
 
@@ -139,7 +138,6 @@ export function park(when) {
     : api('tasks', {
       content: displayTitle(task),
       ...(task.note && { description: task.note }),
-      priority: isImportant(task) ? 4 : 1,
       ...due,
     });
   ui.flash = { text: 'parking…' };

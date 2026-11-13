@@ -1,14 +1,14 @@
 // What the normal-mode keys do. Each changes ui and/or the data; the caller re-renders.
 
 import { state, mutate, undo as undoChange } from '../model/store.js';
-import { toggleToken, stripToken, stripTime, isWaiting, isNotNow, timeOf } from '../model/markers.js';
+import { toggleToken, stripToken, stripTime, hasToken, isWaiting, isNotNow, timeOf } from '../model/markers.js';
 import { INBOX_ID, CHECK_EVERY, openTasks } from '../model/queries.js';
-import { ui, enter, PANES, db, loopsList, onVirtual, currentLoop, currentTasks, selTask, selItem, loopById } from './view.js';
+import { ui, enter, PANES, db, loopsList, onVirtual, currentLoop, currentTasks, selTask, selItem, topTask, loopById } from './view.js';
 import { swap } from '../util.js';
-import { moveAcrossChecks, jumpToChecks, openCheck, afterCheck, checksByLoop } from './attention.js';
+import { moveAcrossTop, jumpToTop, openTop, afterCheck, checksByLoop } from './attention.js';
 
 export function move(delta) {
-  if (moveAcrossChecks(delta)) return;
+  if (moveAcrossTop(delta)) return;
   if (ui.focus === 'loops') {
     ui.loopIdx += delta;
     ui.taskIdx = 0;
@@ -18,8 +18,8 @@ export function move(delta) {
 }
 
 export function jump(toEnd) {
-  ui.checkOn = null;
-  if (!toEnd && ui.focus === 'loops' && jumpToChecks()) return;
+  ui.topOn = null;
+  if (!toEnd && ui.focus === 'loops' && jumpToTop()) return;
   if (ui.focus === 'loops') {
     ui.loopIdx = toEnd ? loopsList().length - 1 : 0;
     ui.taskIdx = 0;
@@ -29,7 +29,7 @@ export function jump(toEnd) {
 }
 
 export function focusPane(delta) {
-  if (delta > 0 && openCheck()) return;
+  if (delta > 0 && openTop()) return;
   const i = PANES.indexOf(ui.focus) + delta;
   if (i >= 0 && i < PANES.length) ui.focus = PANES[i];
 }
@@ -37,7 +37,7 @@ export function focusPane(delta) {
 // J/K: move the selected item down/up; the virtual views stay pinned at the bottom
 export function shift(delta) {
   if (ui.focus === 'loops') {
-    if (ui.checkOn !== null) return;   // reorder on the loop's own row
+    if (ui.topOn !== null) return;   // reorder on the loop's own row
     const i = ui.loopIdx, j = i + delta;
     if (onVirtual() || j < 0 || j >= db().loops.length) return;
     mutate(() => swap(db().loops, i, j));
@@ -78,7 +78,7 @@ export function rename() {
 }
 
 export function remove() {
-  if (ui.focus === 'loops') {
+  if (ui.focus === 'loops' && !topTask()) {
     const loop = currentLoop();
     if (loop.kind) return;   // the virtual entries stay
     // deleting a loop keeps its tasks: they go to the Inbox (settle() does that)
@@ -123,13 +123,13 @@ function finishLoop() {
 // all of that loop's waits at once (several agents in one project are looked at together)
 export function markChecked() {
   if (ui.templates) return;
-  const one = ui.focus === 'tasks' || currentLoop().single;
+  const one = ui.focus === 'tasks' || currentLoop().single || !!topTask();
   const waits = (one ? [selTask()] : currentTasks()).filter(t => t && isWaiting(t));
   if (!waits.length) { ui.flash = { text: 'nothing waiting here' }; return; }
   const now = Date.now();
   const before = checksByLoop().map(c => c.loop.id);
   mutate(() => waits.forEach(t => { t.checkedAt = now; t.title = stripTime(t.title); }));
-  if (ui.checkOn !== null) afterCheck(before);
+  if (ui.topOn && ui.topOn.kind === 'check') afterCheck(before);
   ui.flash = { text: `checked${waits.length > 1 ? ` ${waits.length}` : ''} · again in ${CHECK_EVERY}m` };
 }
 
@@ -149,13 +149,14 @@ export function toggleMarker(tok) {
     ui.flash = { text: 'not now is for tasks in a loop · :park sends it to Todoist' };
     return;
   }
-  // ending a wait also drops its check-back time
-  const endsWait = tok === '@w' && isWaiting(task);
-  // waiting and not now exclude each other: someone else has it, or you hold it back
-  const other = { '@w': '@n', '@n': '@w' }[tok];
+  // waiting, not now and in progress exclude each other: someone else has it, you hold it
+  // back, or you're on it
+  const others = { '@w': ['@n', '@p'], '@n': ['@w', '@p'], '@p': ['@w', '@n'] }[tok] || [];
   mutate(() => {
-    const title = other ? stripToken(task.title, other) : task.title;
-    task.title = toggleToken(endsWait ? stripTime(title) : title, tok);
+    let title = toggleToken(others.reduce(stripToken, task.title), tok);
+    // ending a wait also drops its check-back time
+    if (isWaiting(task) && !hasToken(title, '@w')) title = stripTime(title);
+    task.title = title;
   });
   // handing something off is a good moment to write down where you are,
   // and to say when to look again
@@ -182,6 +183,7 @@ export function paste() {
 export const undo = undoChange;
 
 export function clearMarks() {
+  ui.focusMode = false;
   ui.cutId = null;
   ui.search = null;
 }

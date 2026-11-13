@@ -9,7 +9,7 @@ export function seed() {
   state.loops = loops;
   const [web, report, guide] = loops;
   [
-    ['Sketch new landing page @i', web.id],
+    ['Sketch new landing page', web.id],
     ['Collect feedback on current site', web.id],
     ['Agent: audit page load times @w', web.id],
     ['Draft sent to finance for review @w', report.id],

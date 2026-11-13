@@ -1,8 +1,9 @@
 // Left pane: Now, today's times and the Check rows on top (top.js), then your loops, most
 // important first (or the templates in template mode), and the Inbox and All at the bottom.
 
+import { state } from '../../model/store.js';
 import { openTasks, activeTasks, nextOf, loopStatus } from '../../model/queries.js';
-import { isWaiting, isImportant, displayTitle, timeOf, fmtTime } from '../../model/markers.js';
+import { isWaiting, isInProgress, displayTitle, timeOf, fmtTime } from '../../model/markers.js';
 import { ui, db, virtuals, tasksOf, singleTask } from '../view.js';
 import { firstDoable, firstTaskOf } from '../attention.js';
 import { topBlock } from './top.js';
@@ -17,35 +18,36 @@ export function renderLoops() {
   const first = ui.templates ? null : firstDoable();
   const ed = ui.mode === 'insert' ? ui.editing : null;
   const adding = ed && (ed.kind === 'new-loop' || ed.kind === 'new-single');
-  const sel = i => i === ui.loopIdx && !adding && ui.checkOn === null;   // else the cursor is on a Check row
+  const sel = i => i === ui.loopIdx && !adding && ui.topOn === null;   // else the cursor is on a top row
+  // focus (f): loops with nothing in progress go quiet
+  const quiet = l => ui.focusMode && !openTasks(state, l.id).some(isInProgress);
 
   const rows = [];
 
   d.loops.forEach((l, j) => {
     const i = j;
     const single = singleTask(l);
-    if (single) return rows.push(singleRow(l, single, i, sel(i), ed, l === first));
+    if (single) return rows.push(singleRow(l, single, i, sel(i), ed, l === first, quiet(l)));
     const open = activeTasks(openTasks(d, l.id));
     const next = l === first ? firstTaskOf(l) : nextOf(d, l.id);   // green: the thing to do now
     const status = loopStatus(d, l);
     // waiting count, then all open tasks (like All and Standalone)
     const waiting = open.filter(isWaiting).length;
     const counts = waiting ? `◷ ${waiting}` : '';
-    const nextLine = next ? `▸ ${esc(displayTitle(next))}`
+    const nextLine = next ? `${isInProgress(next) ? '▶' : '▸'} ${esc(displayTitle(next))}`
       : ui.templates ? 'Empty template'
       : status === 'waiting' ? 'Waiting on something'
       : openTasks(d, l.id).length ? 'Only not-now tasks'
       : 'No next action';
     // templates never go yellow/teal: they aren't work in progress
-    const cls = ['row', 'loop', sel(i) && 'sel', l === first && 'first',
+    const cls = ['row', 'loop', sel(i) && 'sel', l === first && 'first', quiet(l) && 'quiet',
       !ui.templates && status === 'stale' && 'stale',
       !ui.templates && status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
     const name = ed && ed.kind === 'rename' && ed.id === l.id
       ? editInput(l.title)
       : `<span class="name">${highlight(l.title, 'loops')}</span>`;
-    const star = open.some(isImportant) ? `<span class="star">★</span>` : '';
     rows.push(`<li class="${cls}" data-i="${i}">
-      <div class="loop-line">${name}${star}<span class="counts">${counts}</span><span class="count">${open.length}</span></div>
+      <div class="loop-line">${name}<span class="counts">${counts}</span><span class="count">${open.length}</span></div>
       <div class="loop-next"><span class="name">${nextLine}</span></div>
       ${noteLine(l, 'loop-note')}
     </li>`);
@@ -57,7 +59,7 @@ export function renderLoops() {
     const ts = activeTasks(tasksOf(l));   // not-now tasks don't count
     const listed = l.kind === 'inbox';
     // anything in the Inbox still needs sorting
-    const cls = ['row', 'virtual', `virtual-${l.kind}`, listed && 'loop', sel(i) && 'sel',
+    const cls = ['row', 'virtual', `virtual-${l.kind}`, listed && 'loop', sel(i) && 'sel', ui.focusMode && 'quiet',
       l.kind === 'inbox' && ts.length && 'inbox-full'].filter(Boolean).join(' ');
     const name = `<span class="name">${highlight(l.title, 'loops')}</span><span class="count">${ts.length}</span>`;
     if (!listed) return `<li class="${cls}" data-i="${i}">${name}</li>`;
@@ -78,16 +80,16 @@ export function renderLoops() {
 }
 
 // a one-step loop is one line: its task, with the task's markers
-function singleRow(l, t, i, selected, ed, isFirst) {
+function singleRow(l, t, i, selected, ed, isFirst, isQuiet) {
   const status = loopStatus(db(), l);
-  const cls = ['row', 'loop', 'single', selected && 'sel', isFirst && 'first',
+  const cls = ['row', 'loop', 'single', selected && 'sel', isFirst && 'first', isQuiet && 'quiet', isInProgress(t) && 'doing',
     status === 'stale' && 'stale', status === 'waiting' && 'waiting-loop'].filter(Boolean).join(' ');
   const time = timeOf(t);
   const name = ed && ed.kind === 'rename' && ed.id === t.id
     ? editInput(t.title)
     : `<span class="name">${highlight(displayTitle(t), 'loops')}</span>`;
   return `<li class="${cls}" data-i="${i}">
-    <div class="loop-line"><span class="check">${isWaiting(t) ? '◷' : ''}</span>${isImportant(t) ? '<span class="star">★</span>' : ''}${time !== null ? `<span class="time">${fmtTime(time)}</span>` : ''}${name}</div>
+    <div class="loop-line"><span class="check">${isInProgress(t) ? '▶' : isWaiting(t) ? '◷' : ''}</span>${time !== null ? `<span class="time">${fmtTime(time)}</span>` : ''}${name}</div>
     ${noteLine(t, 'loop-note')}
   </li>`;
 }
