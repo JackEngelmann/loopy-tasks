@@ -154,14 +154,14 @@ test('settle: loose tasks need a time; one-step loops live and die with their ta
   ok(!d.tasks.some(t => t.loopId === 'E'), 'a finished one-step loop goes away with its task');
 });
 
-test('checks: a wait without a time is due 10 minutes after it was last looked at', () => {
+test('checks: a wait without a time is due CHECK_EVERY minutes after it was last looked at', () => {
   const min = 60_000;
   const t = task('agent @w', { waitingSince: 0 });
-  ok(!checkDue(t, 9 * min));
+  ok(!checkDue(t, (CHECK_EVERY - 1) * min));
   ok(checkDue(t, CHECK_EVERY * min));
-  ok(!checkDue({ ...t, checkedAt: 5 * min }, 12 * min), '. resets it');
+  ok(!checkDue({ ...t, checkedAt: 10 * min }, (10 + CHECK_EVERY - 1) * min), '. resets it');
   ok(!checkDue(task('agent 15:00 @w', { waitingSince: 0 }), 60 * min), 'a check-back time decides instead');
-  const g = attention({ loops: [], tasks: [t, task('agent 2 @w', { waitingSince: 0, checkedAt: 30 * min })] }, 600, 35 * min);
+  const g = attention({ loops: [], tasks: [t, task('agent 2 @w', { waitingSince: 0, checkedAt: 35 * min - 30_000 })] }, 600, 35 * min);
   eq([g.check.map(x => x.title), g.later.map(x => x.title)], [['agent @w'], ['agent 2 @w']]);
 });
 

@@ -33,7 +33,7 @@ export function loopStatus(d, l) {
 
 // not-now tasks have no appointment: no Today, no reminder
 // a wait without a check-back time wants a look every CHECK_EVERY minutes; . resets it
-export const CHECK_EVERY = 10;
+export const CHECK_EVERY = 2;   // short while trying the views out; 10 is the aim
 export const checkDue = (t, nowMs = Date.now()) => !t.done && isWaiting(t) && !isNotNow(t) && timeOf(t) === null
   && nowMs - (t.checkedAt ?? t.waitingSince ?? nowMs) >= CHECK_EVERY * 60_000;
 

@@ -2,6 +2,7 @@
 // the DOM and what it saved to localStorage. Each test starts from the seed data.
 
 import { test, eq, ok } from './harness.js';
+import { CHECK_EVERY } from '../src/model/queries.js';
 
 const STORAGE_KEY = 'loops-v1';
 let w, doc;
@@ -288,11 +289,11 @@ test('. checks waits: a task, or a whole loop at once; Today lists those due', a
   await fresh({ stored: { version: 3, templates: { loops: [], tasks: [] }, loops: [{ id: 'L', title: 'Agents' }, { id: 'M', title: 'Quiet' }], tasks: [
     { id: 'a', title: 'Agent A @w', loopId: 'L', done: false, waitingSince: ago(20) },
     { id: 'b', title: 'Agent B @w', loopId: 'L', done: false, waitingSince: ago(30), checkedAt: ago(12) },
-    { id: 'c', title: 'Agent C @w', loopId: 'L', done: false, waitingSince: ago(5) },
+    { id: 'c', title: 'Agent C @w', loopId: 'L', done: false, waitingSince: ago(CHECK_EVERY - 1) },
     { id: 'd', title: 'Write', loopId: 'M', done: false },
   ] } });
   ok(group('check').includes('Agent A') && group('check').includes('Agent B'), group('check'));
-  ok(!group('check').includes('Agent C'), 'waiting 5 minutes: not yet');
+  ok(!group('check').includes('Agent C'), 'not waiting long enough yet');
   ok(group('check').includes('checked 12m ago'));
   keys('j', 'j', 'l', '.');
   ok(task('Agent A').checkedAt > ago(1));
@@ -315,7 +316,7 @@ function agentDay() {
     tasks: [
       t('w1', 'Agent one @w', 'W', { waitingSince: ago(30) }),
       t('w2', 'Agent two @w', 'W', { waitingSince: ago(20) }),
-      t('w3', 'Agent three @w', 'W', { waitingSince: ago(2) }),
+      t('w3', 'Agent three @w', 'W', { waitingSince: ago(CHECK_EVERY - 1) }),
       t('l1', 'Review the diff', 'L'),
       t('l2', 'Update the README', 'L'),
       t('a1', 'Answer Anna', 'A'),
